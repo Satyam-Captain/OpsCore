@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}Compare · OpsCore{% endblock %}
+
+{% block content %}
+<div class="card diff-page">
+  <p class="breadcrumb-nav">
+    <a href="{{ url_for('index') }}">Scan results</a>
+    <span aria-hidden="true"> / </span>
+    <a href="{{ url_for('file_detail') }}?{{ file_back_query }}">File detail</a>
+    <span aria-hidden="true"> / </span>
+    <span>Diff</span>
+  </p>
+
+  <header class="page-header-block">
+    <h1 class="page-title">Compare sources</h1>
+    <p class="page-description">
+      Unified diff and aligned side-by-side lines for the selected sources and file.
+    </p>
+  </header>
+
+  <div class="diff-source-cards">
+    <div class="diff-source-card diff-source-card-left">
+      <h3 class="diff-source-card-heading">Left source</h3>
+      <dl class="diff-source-card-meta">
+        <dt>Name / id</dt>
+        <dd>{{ src1_label }}</dd>
+        <dt>Domain</dt>
+        <dd><code>{{ domain_id }}</code></dd>
+        <dt>File</dt>
+        <dd><code>{{ relative_path }}</code></dd>
+      </dl>
+    </div>
+    <div class="diff-source-card diff-source-card-right">
+      <h3 class="diff-source-card-heading">Right source</h3>
+      <dl class="diff-source-card-meta">
+        <dt>Name / id</dt>
+        <dd>{{ src2_label }}</dd>
+        <dt>Domain</dt>
+        <dd><code>{{ domain_id }}</code></dd>
+        <dt>File</dt>
+        <dd><code>{{ relative_path }}</code></dd>
+      </dl>
+    </div>
+  </div>
+
+  <section class="diff-section diff-section-unified" aria-labelledby="diff-unified-heading">
+    <h3 id="diff-unified-heading" class="diff-section-title">Unified diff</h3>
+    <div class="diff-unified-box">
+      <pre class="diff-output diff-output-unified">{{ diff_text }}</pre>
+    </div>
+  </section>
+
+  <section class="diff-section diff-section-split" aria-labelledby="diff-side-heading">
+    <h3 id="diff-side-heading" class="diff-section-title">Side-by-side content</h3>
+    <div class="diff-sbs-wrap">
+      <table class="diff-sbs-table">
+        <thead>
+          <tr>
+            <th class="diff-sbs-th diff-sbs-th-left" scope="col">{{ src1_label }}</th>
+            <th class="diff-sbs-th diff-sbs-th-right" scope="col">{{ src2_label }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in side_by_side_rows %}
+            <tr class="line-{{ row.kind }}">
+              <td class="diff-sbs-cell diff-sbs-left">
+                <pre class="diff-sbs-pre">{{ row.left }}</pre>
+              </td>
+              <td class="diff-sbs-cell diff-sbs-right">
+                <pre class="diff-sbs-pre">{{ row.right }}</pre>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

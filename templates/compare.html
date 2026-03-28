@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Compare · OpsCore{% endblock %}
+
+{% block content %}
+<div class="card">
+  <header class="page-header-block">
+    <h1 class="page-title">Compare</h1>
+    <p class="page-description">
+      Diff file content across sources. Run a scan from <strong>Scan</strong>, open a row with
+      <strong>Compare</strong>, then choose two sources to view a unified diff and side-by-side view.
+    </p>
+  </header>
+  <p class="muted">No file context is loaded until you start from scan results.</p>
+  <p>
+    <a href="{{ url_for('index') }}" class="btn btn-primary">Go to Scan</a>
+  </p>
+</div>
+{% endblock %}

@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block title %}Scan · OpsCore{% endblock %}
+
+{% block content %}
+<form method="post" class="card card-scan">
+  <header class="page-header-block">
+    <h1 class="page-title">New scan</h1>
+    <p class="page-description">
+      Choose a domain and sources to inventory files, score drift against baselines, and manage gold.
+    </p>
+  </header>
+  <label for="domain_id">Domain</label>
+  <select name="domain_id" id="domain_id" required>
+    <option value="">-- Select domain --</option>
+    {% for domain in domains %}
+      <option value="{{ domain.id }}">{{ domain.label }}</option>
+    {% endfor %}
+  </select>
+
+  <label for="path_input">Path filter (optional)</label>
+  <input type="text" name="path_input" id="path_input" placeholder="e.g. preexec.sh">
+
+  <label>Sources</label>
+  <div class="checkboxes">
+    {% for source in sources %}
+      <label>
+        <input type="checkbox" name="source_ids" value="{{ source.id }}">
+        {{ source.name }} ({{ source.id }})
+      </label>
+    {% endfor %}
+  </div>
+
+  <label>
+    <input type="checkbox" name="recursive">
+    Recursive
+  </label>
+
+  <button type="submit" class="btn btn-primary">Scan</button>
+</form>
+
+{% if result and matrix %}
+  <div class="card">
+    <header class="page-header-block">
+      <h2 class="page-title">Scan results</h2>
+      <p class="page-description">
+        Matrix of files versus sources. Use <strong>Compare</strong> for file detail and diffs;
+        <strong>Set Gold</strong> when you need a fixed source of truth for a path.
+      </p>
+    </header>
+    <p><strong>Scan ID:</strong> {{ result.scan_id }}</p>
+    <p><strong>Domain:</strong> {{ result.domain_id }}</p>
+    <p><strong>Path filter:</strong> {{ result.path_input or "None" }}</p>
+    <p><strong>Sources:</strong> {{ result.source_ids | join(", ") }}</p>
+
+    {% if result.warnings %}
+      <div class="warning">
+        <strong>Warnings:</strong>
+        <ul>
+          {% for warning in result.warnings %}
+            <li>{{ warning }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+
+    <div class="matrix-help">
+      <p class="matrix-legend-title">Cell colors</p>
+      <ul class="matrix-legend" aria-label="Matrix cell color legend">
+        <li>
+          <span class="legend-swatch legend-swatch-green" aria-hidden="true"></span>
+          Green = identical to baseline
+        </li>
+        <li>
+          <span class="legend-swatch legend-swatch-orange" aria-hidden="true"></span>
+          Orange = small difference
+        </li>
+        <li>
+          <span class="legend-swatch legend-swatch-red" aria-hidden="true"></span>
+          Red = large difference
+        </li>
+        <li class="matrix-legend-variants">
+          V1 / V2 / V3 = different content variants
+        </li>
+      </ul>
+      <p
+        class="matrix-variant-note"
+        title="Variants represent identical content groups (same checksum)"
+      >
+        Variants represent identical content groups (same checksum).
+      </p>
+    </div>
+
+    <div class="matrix-scroll">
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th class="col-file">File</th>
+            {% for src in matrix.sources %}
+              <th class="col-source" title="{{ src.name }} ({{ src.id }})">{{ src.name }}</th>
+            {% endfor %}
+            <th
+              class="col-gold"
+              title="Manual gold only: persisted in data/gold/gold_decisions.json"
+            >Gold</th>
+            <th class="col-baseline">Baseline</th>
+            <th class="col-baseline-type">Baseline Type</th>
+            <th class="col-status">Status</th>
+            <th class="col-actions">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in matrix.rows %}
+            <tr class="status-{{ row.status.lower() }}">
+              <td class="col-file"><code>{{ row.relative_path }}</code></td>
+              {% for src in matrix.sources %}
+                <td class="matrix-cell bucket-{{ row.cells[src.id].bucket }}">
+                  {% if row.cells[src.id].missing %}
+                    <span class="cell-variant">-</span>
+                    <span class="cell-score">-</span>
+                  {% else %}
+                    <span
+                      class="cell-variant"
+                      title="Variants represent identical content groups (same checksum)"
+                    >{{ row.cells[src.id].variant_label }}</span>
+                    <span class="cell-score">{{ row.cells[src.id].score_display }}</span>
+                  {% endif %}
+                </td>
+              {% endfor %}
+              <td class="col-gold">{{ row.gold_display }}</td>
+              <td class="col-baseline">
+                {% if row.baseline_kind == 'GOLD' %}
+                  <span class="baseline-prefix baseline-prefix-gold">GOLD:</span>
+                  {{ row.baseline_display }}
+                {% else %}
+                  <span class="baseline-prefix baseline-prefix-suggested">Suggested:</span>
+                  {{ row.baseline_display }}
+                {% endif %}
+              </td>
+              <td class="col-baseline-type">{{ row.baseline_kind }}</td>
+              <td class="col-status">{{ row.status }}</td>
+              <td class="col-actions">
+                <div class="action-buttons">
+                  <a
+                    class="btn btn-primary btn-sm btn-block"
+                    href="{{ url_for('file_detail', domain_id=result.domain_id, relative_path=row.relative_path, replay_path_input=result.path_input or '', replay_recursive=('1' if result.recursive else '0'), replay_sources=result.source_ids|join(',')) }}"
+                  >Compare</a>
+                  {% if row.gold_source_id %}
+                    {% if row.available_source_ids %}
+                      <a
+                        class="btn btn-secondary btn-sm btn-block"
+                        href="{{ url_for('gold_form', domain_id=result.domain_id, relative_path=row.relative_path, mode='change', allowed_ids=row.available_source_ids|join(','), replay_domain_id=result.domain_id, replay_path_input=result.path_input or '', replay_recursive=('1' if result.recursive else '0'), replay_sources=result.source_ids|join(','), current_gold=row.gold_source_id) }}"
+                      >Change Gold</a>
+                    {% endif %}
+                    <form method="post" action="{{ url_for('gold_remove') }}" class="inline-form">
+                      <input type="hidden" name="domain_id" value="{{ result.domain_id }}">
+                      <input type="hidden" name="relative_path" value="{{ row.relative_path }}">
+                      <input type="hidden" name="replay_domain_id" value="{{ result.domain_id }}">
+                      <input type="hidden" name="replay_path_input" value="{{ result.path_input or '' }}">
+                      <input type="hidden" name="replay_recursive" value="{{ '1' if result.recursive else '0' }}">
+                      {% for sid in result.source_ids %}
+                        <input type="hidden" name="replay_source_id" value="{{ sid }}">
+                      {% endfor %}
+                      <button type="submit" class="btn btn-secondary btn-sm btn-block">Remove Gold</button>
+                    </form>
+                  {% elif row.available_source_ids %}
+                    <a
+                      class="btn btn-secondary btn-sm btn-block"
+                      href="{{ url_for('gold_form', domain_id=result.domain_id, relative_path=row.relative_path, mode='set', allowed_ids=row.available_source_ids|join(','), replay_domain_id=result.domain_id, replay_path_input=result.path_input or '', replay_recursive=('1' if result.recursive else '0'), replay_sources=result.source_ids|join(',')) }}"
+                    >Set Gold</a>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

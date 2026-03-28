@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}File detail · OpsCore{% endblock %}
+
+{% block content %}
+<div class="card">
+  <p class="breadcrumb-nav">
+    <a href="{{ url_for('index') }}">Scan results</a>
+    <span aria-hidden="true"> / </span>
+    <span>File detail</span>
+  </p>
+
+  <header class="page-header-block">
+    <h1 class="page-title">File detail</h1>
+    <p class="page-description">
+      Per-source checksums and paths for this file. Pick two sources below to open a full compare.
+    </p>
+  </header>
+
+  <dl class="detail-meta">
+    <dt>Domain</dt>
+    <dd>{{ ctx.result.domain_id }}</dd>
+    <dt>File</dt>
+    <dd><code>{{ ctx.matrix_row.relative_path }}</code></dd>
+    <dt>Gold</dt>
+    <dd>{{ ctx.matrix_row.gold_display }}</dd>
+    <dt>Baseline</dt>
+    <dd>
+      {% if ctx.matrix_row.baseline_kind == 'GOLD' %}
+        <span class="baseline-prefix baseline-prefix-gold">GOLD:</span>
+        {{ ctx.matrix_row.baseline_display }}
+      {% else %}
+        <span class="baseline-prefix baseline-prefix-suggested">Suggested:</span>
+        {{ ctx.matrix_row.baseline_display }}
+      {% endif %}
+    </dd>
+    <dt>Baseline type</dt>
+    <dd>{{ ctx.matrix_row.baseline_kind }}</dd>
+    <dt>Status</dt>
+    <dd>{{ ctx.matrix_row.status }}</dd>
+  </dl>
+
+  <h3 class="subsection-title-blue">Sources</h3>
+  <div class="matrix-scroll">
+    <table class="detail-table">
+      <thead>
+        <tr>
+          <th>Source</th>
+          <th>Absolute path</th>
+          <th>Checksum</th>
+          <th>mtime</th>
+          <th>Size</th>
+          <th>Variant</th>
+          <th>Score</th>
+          <th>Bucket</th>
+          <th>Present</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in ctx.detail_rows %}
+          <tr class="bucket-row-{{ row.bucket }}">
+            <td>{{ row.source_label }}</td>
+            <td class="path-cell"><code>{{ row.absolute_path }}</code></td>
+            <td><code class="checksum">{{ row.checksum }}</code></td>
+            <td>{{ row.mtime }}</td>
+            <td>{{ row.size_display }}</td>
+            <td>{{ row.variant_label }}</td>
+            <td>{{ row.score_display }}</td>
+            <td>{{ row.bucket }}</td>
+            <td>{% if row.missing %}missing{% else %}yes{% endif %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="subsection-title-blue">Compare two sources</h3>
+  <form method="get" action="{{ url_for('diff_view') }}" class="diff-pick-form">
+    <input type="hidden" name="domain_id" value="{{ ctx.result.domain_id }}">
+    <input type="hidden" name="relative_path" value="{{ ctx.matrix_row.relative_path }}">
+    <input type="hidden" name="replay_path_input" value="{{ ctx.result.path_input or '' }}">
+    <input type="hidden" name="replay_recursive" value="{{ '1' if ctx.result.recursive else '0' }}">
+    <input type="hidden" name="replay_sources" value="{{ ctx.result.source_ids | join(',') }}">
+
+    <label for="src1">Source A</label>
+    <select name="src1" id="src1" required>
+      {% for row in ctx.detail_rows %}
+        <option value="{{ row.source_id }}">{{ row.source_label }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="src2">Source B</label>
+    <select name="src2" id="src2" required>
+      {% for row in ctx.detail_rows %}
+        <option value="{{ row.source_id }}">{{ row.source_label }}</option>
+      {% endfor %}
+    </select>
+
+    <button type="submit" class="btn btn-primary">Compare</button>
+  </form>
+</div>
+{% endblock %}

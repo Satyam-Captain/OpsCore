@@ -1,0 +1,41 @@
+{
+  "_readme": "Each source: id, name, type (cluster|gmc), host, ssh_user (empty = local login name on laptop; set real user on SSH), enabled, trusted_reference. Hosts must not be hardcoded in Python.",
+  "sources": [
+    {
+      "id": "cluster_a",
+      "name": "Cluster A",
+      "type": "cluster",
+      "host": "cluster-a.example",
+      "ssh_user": "",
+      "enabled": true,
+      "trusted_reference": false
+    },
+    {
+      "id": "cluster_b",
+      "name": "Cluster B",
+      "type": "cluster",
+      "host": "cluster-b.example",
+      "ssh_user": "",
+      "enabled": true,
+      "trusted_reference": false
+    },
+    {
+      "id": "cluster_c",
+      "name": "Cluster C",
+      "type": "cluster",
+      "host": "cluster-c.example",
+      "ssh_user": "",
+      "enabled": true,
+      "trusted_reference": false
+    },
+    {
+      "id": "gmc",
+      "name": "GMC",
+      "type": "gmc",
+      "host": "gmc.example",
+      "ssh_user": "",
+      "enabled": true,
+      "trusted_reference": true
+    }
+  ]
+}

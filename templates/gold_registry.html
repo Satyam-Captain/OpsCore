@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Gold Registry · OpsCore{% endblock %}
+
+{% block content %}
+<div class="card">
+  <header class="page-header-block">
+    <h1 class="page-title">Gold Registry</h1>
+    <p class="page-description">
+      All persisted gold decisions (domain, file path, chosen source). Data is read from
+      <code>{{ gold_path }}</code>.
+    </p>
+  </header>
+
+  {% if entries %}
+    <div class="matrix-scroll">
+      <table class="registry-table">
+        <thead>
+          <tr>
+            <th>Domain</th>
+            <th>File</th>
+            <th>Gold source</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in entries %}
+            <tr>
+              <td><code>{{ row.domain_id }}</code></td>
+              <td><code>{{ row.relative_path }}</code></td>
+              <td>{{ row.gold_label }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="muted">No gold decisions recorded yet. Set gold from scan results when variants disagree.</p>
+  {% endif %}
+</div>
+{% endblock %}

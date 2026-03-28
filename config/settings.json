@@ -1,0 +1,17 @@
+{
+  "_readme": "provider: use 'mock' on a laptop without SSH; use 'ssh' on office/GMC with real hosts in sources.json. See providers/factory.py and providers/ssh_provider.py.",
+  "provider": "mock",
+  "gold_decisions_path": "data/gold/gold_decisions.json",
+  "data_root": "data",
+  "default_recursive": false,
+  "max_files_per_scan": 500,
+  "scan_timeout_seconds": 120,
+  "_ssh_notes": "ssh_strict_host_key_checking: accept-new | yes | no. ssh_extra_args: optional list e.g. [\"-i\", \"/path/key\"].",
+  "ssh_strict_host_key_checking": "accept-new",
+  "ssh_extra_args": [],
+  "allowed_domains": [
+    "scripts_bin",
+    "scripts_conf",
+    "scripts_lib"
+  ]
+}

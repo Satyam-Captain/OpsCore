@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}OpsCore{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  {% set ep = request.endpoint %}
+  {% set nav_scan = (ep == 'index') %}
+  {% set nav_compare = ep in ('compare_landing', 'file_detail', 'diff_view') %}
+  {% set nav_truth = (ep == 'source_of_truth') %}
+  {% set nav_gold = ep in ('gold_registry', 'gold_form') %}
+
+  <div class="app-shell">
+    <div class="app-shell-accent" aria-hidden="true"></div>
+    <header class="app-shell-header">
+      <div class="container app-shell-header-inner">
+        <div class="app-shell-brand">
+          <a href="{{ url_for('index') }}" class="app-shell-logo">OpsCore</a>
+          <span class="app-shell-badge">Operations Platform</span>
+        </div>
+      </div>
+    </header>
+    <nav class="app-shell-nav" aria-label="Primary navigation">
+      <div class="container app-shell-nav-inner">
+        <ul class="app-nav-list">
+          <li class="app-nav-li">
+            <a
+              href="{{ url_for('index') }}"
+              class="app-nav-item{% if nav_scan %} app-nav-item--active{% endif %}"
+              {% if nav_scan %}aria-current="page"{% endif %}
+            >Scan</a>
+          </li>
+          <li class="app-nav-li">
+            <a
+              href="{{ url_for('compare_landing') }}"
+              class="app-nav-item{% if nav_compare %} app-nav-item--active{% endif %}"
+              {% if nav_compare %}aria-current="page"{% endif %}
+            >Compare</a>
+          </li>
+          <li class="app-nav-li">
+            <a
+              href="{{ url_for('source_of_truth') }}"
+              class="app-nav-item{% if nav_truth %} app-nav-item--active{% endif %}"
+              {% if nav_truth %}aria-current="page"{% endif %}
+            >Source of Truth</a>
+          </li>
+          <li class="app-nav-li">
+            <a
+              href="{{ url_for('gold_registry') }}"
+              class="app-nav-item{% if nav_gold %} app-nav-item--active{% endif %}"
+              {% if nav_gold %}aria-current="page"{% endif %}
+            >Gold Registry</a>
+          </li>
+          <li class="app-nav-li">
+            <span class="app-nav-item app-nav-item--disabled" title="Coming soon">Deploy</span>
+          </li>
+        </ul>
+      </div>
+    </nav>
+  </div>
+
+  <main class="layout-main">
+    <div class="container">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="alerts" role="status">
+            {% for category, message in messages %}
+              {% if category == 'ok' %}
+                <div class="alert alert-success">{{ message }}</div>
+              {% elif category == 'error' %}
+                <div class="alert alert-error">{{ message }}</div>
+              {% else %}
+                <div class="alert alert-info">{{ message }}</div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+</body>
+</html>

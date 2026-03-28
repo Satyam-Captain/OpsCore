@@ -1,0 +1,40 @@
+{
+    "domains": [
+      {
+        "id": "scripts_bin",
+        "label": "LSF Scripts - bin",
+        "recursive_allowed": true,
+        "roots": {
+          "cluster": "/opt/lsf10/scripts/bin",
+          "gmc": "/opt/platform/gmc/modCFG/work/scripts/bin"
+        }
+      },
+      {
+        "id": "scripts_conf",
+        "label": "LSF Scripts - conf",
+        "recursive_allowed": true,
+        "roots": {
+          "cluster": "/opt/lsf10/scripts/conf",
+          "gmc": "/opt/platform/gmc/modCFG/work/scripts/conf"
+        }
+      },
+      {
+        "id": "scripts_lib",
+        "label": "LSF Scripts - lib",
+        "recursive_allowed": true,
+        "roots": {
+          "cluster": "/opt/lsf10/scripts/lib",
+          "gmc": "/opt/platform/gmc/modCFG/work/scripts/lib"
+        }
+      },
+      {
+        "id": "scripts_etc",
+        "label": "LSF Scripts - etc (GMC mapped)",
+        "recursive_allowed": true,
+        "roots": {
+          "cluster": "/opt/lsf10/scripts/bin",
+          "gmc": "/opt/platform/gmc/modCFG/work/scripts/etc"
+        }
+      }
+    ]
+  }

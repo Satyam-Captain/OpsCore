@@ -1,0 +1,6 @@
+{
+  "entries": {
+    "scripts_bin::profile.jobstarter": "cluster_a",
+    "scripts_conf::preexec.sh": "cluster_c"
+  }
+}

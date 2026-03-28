@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} · OpsCore{% endblock %}
+
+{% block content %}
+<div class="card">
+  <header class="page-header-block">
+    <h1 class="page-title">{{ page_title }}</h1>
+    <p class="page-description">{{ page_description }}</p>
+  </header>
+  <p><strong>Domain:</strong> {{ domain_id }}</p>
+  <p><strong>File:</strong> <code>{{ relative_path }}</code></p>
+
+  <form method="post" action="{{ url_for('gold_save') }}" class="gold-pick-form">
+    <input type="hidden" name="domain_id" value="{{ domain_id }}">
+    <input type="hidden" name="relative_path" value="{{ relative_path }}">
+    <input type="hidden" name="allowed_ids" value="{{ allowed_ids_csv }}">
+
+    <input type="hidden" name="replay_domain_id" value="{{ replay_domain_id }}">
+    <input type="hidden" name="replay_path_input" value="{{ replay_path_input }}">
+    <input type="hidden" name="replay_recursive" value="{{ replay_recursive }}">
+    {% for sid in replay_source_ids %}
+      <input type="hidden" name="replay_source_id" value="{{ sid }}">
+    {% endfor %}
+
+    <label for="gold_source_id">Gold source (must have this file in the scan)</label>
+    <select name="gold_source_id" id="gold_source_id" required>
+      <option value="">-- Choose source --</option>
+      {% for sid, label in options %}
+        <option value="{{ sid }}" {% if sid == current_gold %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Save</button>
+      <a class="btn btn-secondary" href="{{ url_for('index') }}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

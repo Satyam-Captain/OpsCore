@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Source of Truth · OpsCore{% endblock %}
+
+{% block content %}
+<div class="card">
+  <header class="page-header-block">
+    <h1 class="page-title">Source of Truth</h1>
+    <p class="page-description">
+      OpsCore treats <strong>manual gold</strong> as the authoritative baseline when you record a
+      decision for a file. Gold overrides suggested baselines from the scan so drift scoring aligns
+      with operations intent.
+    </p>
+  </header>
+  <p>
+    Decisions are stored in <code>{{ gold_path }}</code>. Use
+    <a href="{{ url_for('gold_registry') }}">Gold Registry</a> to review every domain and path that
+    currently has gold set.
+  </p>
+  <p class="muted">
+    Set or change gold from scan results with <strong>Set Gold</strong> / <strong>Change Gold</strong>
+    on a file row.
+  </p>
+</div>
+{% endblock %}
