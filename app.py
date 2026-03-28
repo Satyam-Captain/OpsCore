@@ -12,6 +12,7 @@ from core.gold_decisions import gold_decision_key, load_gold_map, save_gold_map
 from core.matrix import build_matrix_view
 from core.models import Domain, Source
 from core.scanner import run_scan
+from core.scan_snapshot import is_valid_scan_id, load_scan_snapshot, save_scan_snapshot
 from core.storage import load_json
 from core.side_by_side_diff import build_side_by_side_rows
 from core.text_diff import unified_diff_text
@@ -84,6 +85,10 @@ def run_scan_and_matrix(
 
 
 def _store_scan_replay_from_form():
+    scan_id = request.form.get("replay_scan_id", "").strip()
+    if scan_id and is_valid_scan_id(scan_id):
+        session["scan_replay"] = {"scan_id": scan_id}
+        return
     session["scan_replay"] = {
         "domain_id": request.form.get("replay_domain_id", "").strip(),
         "path_input": request.form.get("replay_path_input", "").strip(),
@@ -98,6 +103,10 @@ def _replay_sources_from_request() -> List[str]:
 
 
 def _stash_scan_replay_from_query():
+    scan_id = request.args.get("scan_id", "").strip()
+    if scan_id and is_valid_scan_id(scan_id):
+        session["scan_replay"] = {"scan_id": scan_id}
+        return
     domain_id = request.args.get("domain_id", "").strip()
     path_input = request.args.get("replay_path_input", "")
     recursive = request.args.get("replay_recursive", "0") == "1"
@@ -111,6 +120,12 @@ def _stash_scan_replay_from_query():
         }
 
 
+def _load_snapshot_pair(scan_id: str, catalog: List[Source]):
+    if not is_valid_scan_id(scan_id):
+        return None
+    return load_scan_snapshot(scan_id, catalog)
+
+
 @app.route("/", methods=["GET", "POST"])
 def index():
     sources = load_sources()
@@ -118,17 +133,32 @@ def index():
     result = None
     matrix = None
 
-    replay = session.pop("scan_replay", None)
-    if replay and replay.get("domain_id") and replay.get("source_ids"):
-        result, matrix = run_scan_and_matrix(
-            replay["domain_id"],
-            replay.get("path_input", ""),
-            replay.get("recursive", False),
-            replay["source_ids"],
-            sources,
-        )
-        if not result:
-            flash("Could not restore the scan view. Run Scan again.", "error")
+    scan_id_q = request.args.get("scan_id", "").strip()
+    if scan_id_q:
+        loaded = _load_snapshot_pair(scan_id_q, sources)
+        if loaded:
+            result, matrix = loaded
+        else:
+            flash("Saved scan not found or outdated. Run a new scan.", "error")
+
+    if result is None:
+        replay = session.pop("scan_replay", None)
+        if replay and replay.get("scan_id"):
+            loaded = _load_snapshot_pair(replay["scan_id"], sources)
+            if loaded:
+                result, matrix = loaded
+            else:
+                flash("Could not restore the scan view. Run Scan again.", "error")
+        elif replay and replay.get("domain_id") and replay.get("source_ids"):
+            result, matrix = run_scan_and_matrix(
+                replay["domain_id"],
+                replay.get("path_input", ""),
+                replay.get("recursive", False),
+                replay["source_ids"],
+                sources,
+            )
+            if not result:
+                flash("Could not restore the scan view. Run Scan again.", "error")
 
     if request.method == "POST":
         domain_id = request.form.get("domain_id", "")
@@ -157,6 +187,10 @@ def index():
                 sources,
                 gold_map,
             )
+            try:
+                save_scan_snapshot(result, matrix, sources)
+            except (OSError, ValueError) as exc:
+                flash(f"Scan completed but could not save snapshot: {exc}", "error")
 
     return render_template(
         "index.html",
@@ -223,6 +257,7 @@ def gold_form():
     replay_source_ids = [
         x.strip() for x in request.args.get("replay_sources", "").split(",") if x.strip()
     ]
+    replay_scan_id = request.args.get("scan_id", "").strip()
     current_gold = request.args.get("current_gold", "").strip()
 
     if not domain_id or not relative_path or not allowed_ids:
@@ -241,16 +276,18 @@ def gold_form():
     if mode not in ("set", "change"):
         mode = "set"
 
-    if not replay_source_ids:
-        flash("Missing scan context. Run Scan again.", "error")
+    if replay_scan_id and is_valid_scan_id(replay_scan_id):
+        session["scan_replay"] = {"scan_id": replay_scan_id}
+    elif replay_source_ids:
+        session["scan_replay"] = {
+            "domain_id": replay_domain_id,
+            "path_input": replay_path_input,
+            "recursive": replay_recursive == "1",
+            "source_ids": replay_source_ids,
+        }
+    else:
+        flash("Missing scan context. Open gold from scan results or run Scan again.", "error")
         return redirect(url_for("index"))
-
-    session["scan_replay"] = {
-        "domain_id": replay_domain_id,
-        "path_input": replay_path_input,
-        "recursive": replay_recursive == "1",
-        "source_ids": replay_source_ids,
-    }
 
     options = []
     for sid in allowed_ids:
@@ -273,6 +310,7 @@ def gold_form():
         replay_path_input=replay_path_input,
         replay_recursive=replay_recursive,
         replay_source_ids=replay_source_ids,
+        replay_scan_id=replay_scan_id if is_valid_scan_id(replay_scan_id) else "",
         current_gold=current_gold if current_gold in allowed_ids else "",
     )
 
@@ -336,13 +374,15 @@ def gold_remove():
 @app.route("/file")
 def file_detail():
     sources = load_sources()
+    scan_id = request.args.get("scan_id", "").strip()
     domain_id = request.args.get("domain_id", "").strip()
     relative_path = request.args.get("relative_path", "").strip()
-    path_input = request.args.get("replay_path_input", "")
-    recursive = request.args.get("replay_recursive", "0") == "1"
-    replay_sources = _replay_sources_from_request()
 
-    if not domain_id or not relative_path or not replay_sources:
+    if not scan_id or not is_valid_scan_id(scan_id):
+        flash("Missing or invalid scan. Open Compare from the current scan results.", "error")
+        return redirect(url_for("index"))
+
+    if not domain_id or not relative_path:
         flash("Missing file context. Open Compare from a scan result.", "error")
         return redirect(url_for("index"))
 
@@ -353,19 +393,15 @@ def file_detail():
 
     _stash_scan_replay_from_query()
 
-    gold_map = load_gold_map(gold_decisions_file_path())
     ctx = resolve_file_page(
+        scan_id,
         domain,
         relative_path,
-        replay_sources,
-        path_input,
-        recursive,
         sources,
-        gold_map,
         inventory_provider(),
     )
     if ctx is None:
-        flash("That file is not in this scan context.", "error")
+        flash("That file is not in this scan snapshot.", "error")
         return redirect(url_for("index"))
 
     return render_template("file.html", ctx=ctx)
@@ -375,37 +411,47 @@ def file_detail():
 def diff_view():
     sources = load_sources()
     by_id = {s.id: s for s in sources}
+    scan_id = request.args.get("scan_id", "").strip()
     domain_id = request.args.get("domain_id", "").strip()
     relative_path = request.args.get("relative_path", "").strip()
     src1 = request.args.get("src1", "").strip()
     src2 = request.args.get("src2", "").strip()
-    path_input = request.args.get("replay_path_input", "")
-    recursive = request.args.get("replay_recursive", "0") == "1"
-    replay_sources = _replay_sources_from_request()
+
+    if not scan_id or not is_valid_scan_id(scan_id):
+        flash("Missing or invalid scan for diff.", "error")
+        return redirect(url_for("index"))
 
     if not domain_id or not relative_path or not src1 or not src2:
         flash("Missing diff parameters.", "error")
         return redirect(url_for("index"))
 
+    snap = load_scan_snapshot(scan_id, sources)
+    if not snap:
+        flash("Saved scan not found. Run a new scan.", "error")
+        return redirect(url_for("index"))
+    result, _matrix = snap
+    if result.domain_id != domain_id:
+        flash("Domain does not match saved scan.", "error")
+        return redirect(url_for("index"))
+
+    paths = {g.relative_path for g in result.groups}
+    if relative_path not in paths:
+        flash("File is not in this scan snapshot.", "error")
+        return redirect(url_for("index"))
+
+    allowed = set(result.source_ids)
     if src1 == src2:
         flash("Choose two different sources to compare.", "error")
         return redirect(
             url_for(
                 "file_detail",
+                scan_id=scan_id,
                 domain_id=domain_id,
                 relative_path=relative_path,
-                replay_path_input=path_input,
-                replay_recursive="1" if recursive else "0",
-                replay_sources=",".join(replay_sources),
             )
         )
-
-    allowed = set(replay_sources)
-    if not allowed:
-        flash("Missing scan context for diff.", "error")
-        return redirect(url_for("index"))
     if src1 not in allowed or src2 not in allowed:
-        flash("Sources must be part of the current scan selection.", "error")
+        flash("Sources must be part of the saved scan.", "error")
         return redirect(url_for("index"))
 
     domain = get_domain_by_id(domain_id)
@@ -430,11 +476,9 @@ def diff_view():
         return redirect(
             url_for(
                 "file_detail",
+                scan_id=scan_id,
                 domain_id=domain_id,
                 relative_path=relative_path,
-                replay_path_input=path_input,
-                replay_recursive="1" if recursive else "0",
-                replay_sources=",".join(replay_sources),
             )
         )
     except ValueError as exc:
@@ -442,11 +486,9 @@ def diff_view():
         return redirect(
             url_for(
                 "file_detail",
+                scan_id=scan_id,
                 domain_id=domain_id,
                 relative_path=relative_path,
-                replay_path_input=path_input,
-                replay_recursive="1" if recursive else "0",
-                replay_sources=",".join(replay_sources),
             )
         )
     label1 = f"{s1.name} ({s1.id})"
@@ -456,16 +498,15 @@ def diff_view():
 
     file_back_q = urlencode(
         {
+            "scan_id": scan_id,
             "domain_id": domain_id,
             "relative_path": relative_path,
-            "replay_path_input": path_input,
-            "replay_recursive": "1" if recursive else "0",
-            "replay_sources": ",".join(replay_sources),
         }
     )
 
     return render_template(
         "diff.html",
+        scan_id=scan_id,
         domain_id=domain_id,
         relative_path=relative_path,
         src1_label=label1,

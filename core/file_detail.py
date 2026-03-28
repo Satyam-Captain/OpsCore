@@ -1,11 +1,10 @@
-"""Resolve scan + matrix row for the file detail page."""
+"""Resolve scan + matrix row for the file detail page (from saved snapshot)."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import List, Optional
 
-from core.matrix import build_matrix_view
 from core.models import (
     Domain,
     FileSourceDetailRow,
@@ -14,7 +13,7 @@ from core.models import (
     ScanResult,
     Source,
 )
-from core.scanner import run_scan
+from core.scan_snapshot import load_scan_snapshot
 from providers.base import InventoryProvider
 
 
@@ -82,36 +81,32 @@ class ResolvedFilePage:
     selected_sources: List[Source]
     provider: InventoryProvider
     detail_rows: List[FileSourceDetailRow]
+    scan_id: str
 
 
 def resolve_file_page(
+    scan_id: str,
     domain: Domain,
     relative_path: str,
-    source_ids: List[str],
-    path_input: str,
-    recursive: bool,
     catalog_sources: List[Source],
-    gold_map: Dict[str, str],
     provider: InventoryProvider,
 ) -> Optional[ResolvedFilePage]:
-    selected_sources = [s for s in catalog_sources if s.id in source_ids]
+    """
+    Build file detail from a persisted scan snapshot (no run_scan).
+
+    Domain must match the snapshot's domain_id.
+    """
+    loaded = load_scan_snapshot(scan_id, catalog_sources)
+    if not loaded:
+        return None
+    result, matrix = loaded
+    if result.domain_id != domain.id:
+        return None
+
+    selected_sources = [s for s in catalog_sources if s.id in result.source_ids]
     if not selected_sources:
         return None
-    result = run_scan(
-        provider=provider,
-        domain=domain,
-        sources=selected_sources,
-        path_input=path_input,
-        recursive=recursive,
-    )
-    matrix = build_matrix_view(
-        result,
-        selected_sources,
-        provider,
-        domain,
-        catalog_sources,
-        gold_map,
-    )
+
     row = next((r for r in matrix.rows if r.relative_path == relative_path), None)
     group = next((g for g in result.groups if g.relative_path == relative_path), None)
     if row is None or group is None:
@@ -128,4 +123,5 @@ def resolve_file_page(
         selected_sources=selected_sources,
         provider=provider,
         detail_rows=detail_rows,
+        scan_id=scan_id,
     )

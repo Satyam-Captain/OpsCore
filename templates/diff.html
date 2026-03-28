@@ -5,7 +5,7 @@
 {% block content %}
 <div class="card diff-page">
   <p class="breadcrumb-nav">
-    <a href="{{ url_for('index') }}">Scan results</a>
+    <a href="{{ url_for('index', scan_id=scan_id) }}">Scan results</a>
     <span aria-hidden="true"> / </span>
     <a href="{{ url_for('file_detail') }}?{{ file_back_query }}">File detail</a>
     <span aria-hidden="true"> / </span>

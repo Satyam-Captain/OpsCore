@@ -5,7 +5,7 @@
 {% block content %}
 <div class="card">
   <p class="breadcrumb-nav">
-    <a href="{{ url_for('index') }}">Scan results</a>
+    <a href="{{ url_for('index', scan_id=ctx.scan_id) }}">Scan results</a>
     <span aria-hidden="true"> / </span>
     <span>File detail</span>
   </p>
@@ -76,11 +76,9 @@
 
   <h3 class="subsection-title-blue">Compare two sources</h3>
   <form method="get" action="{{ url_for('diff_view') }}" class="diff-pick-form">
+    <input type="hidden" name="scan_id" value="{{ ctx.scan_id }}">
     <input type="hidden" name="domain_id" value="{{ ctx.result.domain_id }}">
     <input type="hidden" name="relative_path" value="{{ ctx.matrix_row.relative_path }}">
-    <input type="hidden" name="replay_path_input" value="{{ ctx.result.path_input or '' }}">
-    <input type="hidden" name="replay_recursive" value="{{ '1' if ctx.result.recursive else '0' }}">
-    <input type="hidden" name="replay_sources" value="{{ ctx.result.source_ids | join(',') }}">
 
     <label for="src1">Source A</label>
     <select name="src1" id="src1" required>

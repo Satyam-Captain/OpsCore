@@ -18,6 +18,8 @@ from core.models import (
     SourceCellInfo,
 )
 from providers.base import InventoryProvider
+from providers.exceptions import SshReadError
+
 logger = logging.getLogger(__name__)
 
 BUCKET_EXACT = "exact"
@@ -131,10 +133,14 @@ class _ContentCache:
                     source, self.domain, relative_path
                 )
             except SshReadError as exc:
-                logger.warning(f"Skipping file {relative_path} for source {source.id}: {exc}", exc)
+                logger.warning(
+                    "Skipping file %s for source %s: %s", relative_path, source.id, exc
+                )
                 self._cache[key] = ""
             except Exception as exc:
-                logger.error(f"Error reading file {relative_path} for source {source.id}: {exc}", exc)
+                logger.exception(
+                    "Error reading file %s for source %s", relative_path, source.id
+                )
                 self._cache[key] = ""
         return self._cache[key]
 

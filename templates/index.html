@@ -143,16 +143,17 @@
                 <div class="action-buttons">
                   <a
                     class="btn btn-primary btn-sm btn-block"
-                    href="{{ url_for('file_detail', domain_id=result.domain_id, relative_path=row.relative_path, replay_path_input=result.path_input or '', replay_recursive=('1' if result.recursive else '0'), replay_sources=result.source_ids|join(',')) }}"
+                    href="{{ url_for('file_detail', scan_id=result.scan_id, domain_id=result.domain_id, relative_path=row.relative_path) }}"
                   >Compare</a>
                   {% if row.gold_source_id %}
                     {% if row.available_source_ids %}
                       <a
                         class="btn btn-secondary btn-sm btn-block"
-                        href="{{ url_for('gold_form', domain_id=result.domain_id, relative_path=row.relative_path, mode='change', allowed_ids=row.available_source_ids|join(','), replay_domain_id=result.domain_id, replay_path_input=result.path_input or '', replay_recursive=('1' if result.recursive else '0'), replay_sources=result.source_ids|join(','), current_gold=row.gold_source_id) }}"
+                        href="{{ url_for('gold_form', scan_id=result.scan_id, domain_id=result.domain_id, relative_path=row.relative_path, mode='change', allowed_ids=row.available_source_ids|join(','), replay_domain_id=result.domain_id, replay_path_input=result.path_input or '', replay_recursive=('1' if result.recursive else '0'), replay_sources=result.source_ids|join(','), current_gold=row.gold_source_id) }}"
                       >Change Gold</a>
                     {% endif %}
                     <form method="post" action="{{ url_for('gold_remove') }}" class="inline-form">
+                      <input type="hidden" name="replay_scan_id" value="{{ result.scan_id }}">
                       <input type="hidden" name="domain_id" value="{{ result.domain_id }}">
                       <input type="hidden" name="relative_path" value="{{ row.relative_path }}">
                       <input type="hidden" name="replay_domain_id" value="{{ result.domain_id }}">
@@ -166,7 +167,7 @@
                   {% elif row.available_source_ids %}
                     <a
                       class="btn btn-secondary btn-sm btn-block"
-                      href="{{ url_for('gold_form', domain_id=result.domain_id, relative_path=row.relative_path, mode='set', allowed_ids=row.available_source_ids|join(','), replay_domain_id=result.domain_id, replay_path_input=result.path_input or '', replay_recursive=('1' if result.recursive else '0'), replay_sources=result.source_ids|join(',')) }}"
+                      href="{{ url_for('gold_form', scan_id=result.scan_id, domain_id=result.domain_id, relative_path=row.relative_path, mode='set', allowed_ids=row.available_source_ids|join(','), replay_domain_id=result.domain_id, replay_path_input=result.path_input or '', replay_recursive=('1' if result.recursive else '0'), replay_sources=result.source_ids|join(',')) }}"
                     >Set Gold</a>
                   {% endif %}
                 </div>

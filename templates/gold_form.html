@@ -16,6 +16,9 @@
     <input type="hidden" name="relative_path" value="{{ relative_path }}">
     <input type="hidden" name="allowed_ids" value="{{ allowed_ids_csv }}">
 
+    {% if replay_scan_id %}
+    <input type="hidden" name="replay_scan_id" value="{{ replay_scan_id }}">
+    {% endif %}
     <input type="hidden" name="replay_domain_id" value="{{ replay_domain_id }}">
     <input type="hidden" name="replay_path_input" value="{{ replay_path_input }}">
     <input type="hidden" name="replay_recursive" value="{{ replay_recursive }}">

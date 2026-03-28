@@ -24,3 +24,6 @@ Thumbs.db
 # Local env / secrets
 .env
 .env.local
+
+# Runtime scan snapshots (UUID JSON under data/scans/)
+data/scans/*.json
