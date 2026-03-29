@@ -50,7 +50,7 @@ class MatrixView:
     """Full matrix for a scan: columns follow selected source order."""
 
     rows: List[MatrixRowView]
-    sources: List[Source]
+    sources: List['Source']
 
 
 @dataclass
@@ -90,7 +90,7 @@ class FileRecord:
 class LogicalFileGroup:
     domain_id: str
     relative_path: str
-    records: List[FileRecord] = field(default_factory=list)
+    records: List['FileRecord'] = field(default_factory=list)
     status: str = "UNCERTAIN"
     candidate_source_ids: List[str] = field(default_factory=list)
     notes: List[str] = field(default_factory=list)
@@ -104,4 +104,4 @@ class ScanResult:
     source_ids: List[str]
     path_input: str
     warnings: List[str] = field(default_factory=list)
-    groups: List[LogicalFileGroup] = field(default_factory=list)
+    groups: List['LogicalFileGroup'] = field(default_factory=list)

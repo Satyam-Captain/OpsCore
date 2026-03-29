@@ -122,8 +122,7 @@
       "help_mode": "lookup_rows",
       "help_table": "clusters",
       "help_columns": [
-        "ID",
-        "cluster"
+        "ID"
       ]
     },
     {

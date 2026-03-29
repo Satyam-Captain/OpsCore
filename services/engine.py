@@ -38,13 +38,22 @@ def start_service_operation(
     exists = request_adapter.request_exists(req_clean)
     require_dir = bool(settings.get("service_require_request_dir", True))
     allow_bypass = bool(settings.get("service_allow_request_bypass", True))
+    req_backend = str(settings.get("service_request_backend") or "local").strip().lower()
 
     step_payload = {
         "request_path": request_path,
         "exists": exists,
         "require_request_dir": require_dir,
         "allow_request_bypass": allow_bypass,
+        "request_backend": req_backend,
     }
+
+    # GMC validation mode: missing REQ directory is a hard stop (no operation JSON creation).
+    if req_backend == "gmc" and require_dir and not allow_bypass and not exists:
+        raise ValueError(
+            "Request directory was not found on GMC (.requests/LSF10CFG/REQ-<n>). "
+            "Operation was not created."
+        )
 
     if exists:
         status = "created"

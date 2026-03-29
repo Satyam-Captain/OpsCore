@@ -74,7 +74,7 @@ class SshInventoryProvider(InventoryProvider):
     def _settings_connect_timeout(self) -> int:
         return min(30, max(5, self._timeout // 4 or 15))
 
-    def _run_remote_script(self, source: Source, script: str) -> subprocess.CompletedProcess[bytes]:
+    def _run_remote_script(self, source: Source, script: str) -> subprocess.CompletedProcess:
         cmd = self._ssh_cmd_prefix(source) + ["bash", "-s", "--"]
         return subprocess.run(
             cmd,
@@ -83,7 +83,7 @@ class SshInventoryProvider(InventoryProvider):
             timeout=self._timeout,
         )
 
-    def _run_remote_argv(self, source: Source, argv: List[str]) -> subprocess.CompletedProcess[bytes]:
+    def _run_remote_argv(self, source: Source, argv: List[str]) -> subprocess.CompletedProcess:
         cmd = self._ssh_cmd_prefix(source) + argv
         return subprocess.run(cmd, capture_output=True, timeout=self._timeout)
 

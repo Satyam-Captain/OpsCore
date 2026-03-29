@@ -67,6 +67,18 @@
         var tid = btn.getAttribute("data-help-target");
         var out = tid ? document.getElementById(tid) : null;
         if (!url || !out) return;
+        var isOpen = out.getAttribute("data-open") === "1";
+        if (isOpen) {
+          out.style.display = "none";
+          out.setAttribute("data-open", "0");
+          return;
+        }
+        out.style.display = "";
+        out.setAttribute("data-open", "1");
+        var hasLoaded = out.getAttribute("data-loaded") === "1";
+        if (hasLoaded) {
+          return;
+        }
         out.innerHTML =
           '<span class="page-description">Loading…</span>';
         fetch(url, { credentials: "same-origin" })
@@ -92,6 +104,7 @@
               out.innerHTML =
                 '<span class="page-description">Unexpected help response.</span>';
             }
+            out.setAttribute("data-loaded", "1");
           })
           .catch(function () {
             out.innerHTML =

@@ -34,5 +34,5 @@
   "service_operations_root": "data/services/operations",
   "service_sandbox_root": "data/sandbox",
   "service_require_request_dir": true,
-  "service_allow_request_bypass": true
+  "service_allow_request_bypass": false
 }
