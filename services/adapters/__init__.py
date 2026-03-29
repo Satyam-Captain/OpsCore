@@ -1,6 +1,5 @@
 """Pluggable backends for DB, request dirs, and scripts (mock vs office)."""
 
-from __future__ import annotations
 
 import os
 from typing import Any, Dict, Tuple

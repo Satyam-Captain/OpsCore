@@ -1,6 +1,5 @@
 """Filesystem paths for the service layer (project root = OpsCore app directory)."""
 
-from __future__ import annotations
 
 import os
 

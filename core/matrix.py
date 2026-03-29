@@ -1,6 +1,5 @@
 """Build file × source matrix with baseline, variant labels, and similarity scores."""
 
-from __future__ import annotations
 
 import logging
 from difflib import SequenceMatcher

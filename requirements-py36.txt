@@ -1,0 +1,10 @@
+# Python 3.6 compatible dependency set for GMC validation branch.
+# Keep normal local dependency flow unchanged (requirements.txt).
+Flask==2.0.3
+Werkzeug==2.0.3
+Jinja2==3.0.3
+itsdangerous==2.0.1
+click==8.0.4
+MarkupSafe==2.0.1
+pymysql==1.0.3
+dataclasses==0.8

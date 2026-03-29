@@ -2,7 +2,6 @@
 Mock scripts: generated configs under ``<sandbox>/generated/<cluster>/`` and publish into request dir.
 """
 
-from __future__ import annotations
 
 import os
 import shutil

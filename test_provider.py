@@ -15,12 +15,12 @@ before starting Flask (BatchMode SSH, keys, host names).
 directory target). With ``provider=mock``, it remains a substring filter (unchanged).
 """
 
-from __future__ import annotations
 
 import argparse
 import os
 import sys
 from pathlib import Path
+from typing import List
 
 # Ensure config/*.json paths resolve when cwd is not the app root
 _ROOT = Path(__file__).resolve().parent
@@ -38,12 +38,12 @@ def _load_settings():
     return load_json("config/settings.json")
 
 
-def _load_domains() -> list[Domain]:
+def _load_domains() -> List[Domain]:
     raw = load_json("config/domains.json")
     return [Domain(**item) for item in raw["domains"]]
 
 
-def _load_sources() -> list[Source]:
+def _load_sources() -> List[Source]:
     raw = load_json("config/sources.json")
     items = raw.get("sources") or []
     return [Source(**item) for item in items if item.get("enabled", True)]

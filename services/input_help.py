@@ -5,7 +5,6 @@ Table/column names never come from the client; only field keys allowed by the
 service definition are accepted, then server-side metadata selects the query.
 """
 
-from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 

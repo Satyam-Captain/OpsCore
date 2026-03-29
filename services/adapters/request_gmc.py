@@ -5,7 +5,6 @@ GMC filesystem layout: <requests_root>/REQ-<request_number>.
 ``/opt/platform/gmc/modCFG/work/.requests/LSF10CFG`` — configurable via settings.
 """
 
-from __future__ import annotations
 
 import os
 

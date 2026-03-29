@@ -6,7 +6,6 @@ Replace this module with real auth/IAM later; keep call sites using these functi
 SECURITY: The superadmin password below is for local prototype use only — not for production.
 """
 
-from __future__ import annotations
 
 from typing import Any, Optional
 

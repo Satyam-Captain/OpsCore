@@ -4,7 +4,6 @@ Load JSON service definitions from ``services/defs``.
 Validated definitions are plain dicts suitable for the engine and templates.
 """
 
-from __future__ import annotations
 
 import glob
 import os

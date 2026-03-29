@@ -5,7 +5,6 @@ Writes (insert/delete) are not supported; callers that need apply/rollback shoul
 ``service_db_backend=json`` until write support is added.
 """
 
-from __future__ import annotations
 
 import os
 import re

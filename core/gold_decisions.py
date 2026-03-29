@@ -1,6 +1,5 @@
 """Load persisted manual gold decisions (source per logical file) from JSON."""
 
-from __future__ import annotations
 
 import os
 from typing import Dict, Optional

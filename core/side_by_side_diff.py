@@ -1,6 +1,5 @@
 """Line-aligned side-by-side rows for diff visualization (no unified diff)."""
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from difflib import SequenceMatcher

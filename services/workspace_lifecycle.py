@@ -6,7 +6,6 @@ Workspace activity for global locking.
   rolled-back jobs still release the lock.
 """
 
-from __future__ import annotations
 
 from typing import Any, Dict
 

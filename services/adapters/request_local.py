@@ -2,7 +2,6 @@
 Sandbox request dirs: <sandbox>/requests/LSF10CFG/REQ-<request_number>.
 """
 
-from __future__ import annotations
 
 import os
 

@@ -1,6 +1,5 @@
 """Unified text diff for two file contents."""
 
-from __future__ import annotations
 
 from difflib import unified_diff
 

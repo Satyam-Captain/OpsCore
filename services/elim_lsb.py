@@ -4,7 +4,6 @@ ELIM mock config helpers: paths, state merge, and UI row model.
 Reference cluster is ``generation_context_cluster`` on the operation (not deployment).
 """
 
-from __future__ import annotations
 
 import os
 from typing import Any, Dict, List, Optional, Tuple

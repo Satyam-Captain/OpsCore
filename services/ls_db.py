@@ -5,7 +5,6 @@ LS-specific code should import from here when you want an explicit LS entry poin
 implementation is shared in ``elim_db`` (same tables and steps).
 """
 
-from __future__ import annotations
 
 from services.elim_db import (
     LS_SERVICE_ID,

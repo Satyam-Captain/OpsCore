@@ -5,7 +5,6 @@ Service definitions may declare ``request_blueprint``, ``config_files``, and ``t
 Rendering stays generic; ELIM-specific status inference lives in private helpers below.
 """
 
-from __future__ import annotations
 
 import json
 from typing import Any, Dict, List, Optional, Tuple

@@ -4,7 +4,6 @@ Minimal service engine: create operation, run request-dir check, set initial sta
 Full step orchestration is intentionally not implemented yet.
 """
 
-from __future__ import annotations
 
 from typing import Any, Dict, Optional, Tuple
 

@@ -5,14 +5,14 @@ All domain roots and file paths are treated as POSIX paths. This avoids Windows 
 semantics leaking into remote commands.
 """
 
-from __future__ import annotations
 
 from pathlib import PurePosixPath
+from typing import List
 
 
 def _lexical_posix_norm(path: PurePosixPath) -> PurePosixPath:
     """Collapse ``.`` / ``..`` on a POSIX path without filesystem access."""
-    stack: list[str] = []
+    stack: List[str] = []
     for part in path.parts:
         if part in ("", "."):
             continue

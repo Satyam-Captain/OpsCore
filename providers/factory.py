@@ -14,7 +14,6 @@ Switching environments (e.g. laptop mock → office/GMC SSH):
 This module is the only place that chooses mock vs SSH; app code asks for a provider here.
 """
 
-from __future__ import annotations
 
 from typing import Any, Dict
 

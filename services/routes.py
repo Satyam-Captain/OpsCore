@@ -1,6 +1,5 @@
 """Flask routes for the service layer (registry, start form, operation view)."""
 
-from __future__ import annotations
 
 import os
 from typing import Any, Dict, List, Optional, Tuple

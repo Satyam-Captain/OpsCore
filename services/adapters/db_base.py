@@ -1,6 +1,5 @@
 """Abstract DB adapter for service workflows (MariaDB later, JSON mock now)."""
 
-from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional

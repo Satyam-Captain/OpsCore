@@ -2,7 +2,6 @@
 Persist operation state as one JSON file per operation under ``data/services/operations``.
 """
 
-from __future__ import annotations
 
 import os
 import uuid

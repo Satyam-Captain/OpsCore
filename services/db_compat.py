@@ -5,7 +5,6 @@ Run:
     python -m services.db_compat
 """
 
-from __future__ import annotations
 
 import json
 import os

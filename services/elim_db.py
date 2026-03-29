@@ -5,7 +5,6 @@ Supported service ids: ``add_license_resource_elim`` (ELIM) and ``add_license_re
 Same tables and apply steps; rollback execution uses the JSON adapter's ``delete_row_by_id``.
 """
 
-from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 

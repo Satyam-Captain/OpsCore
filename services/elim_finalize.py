@@ -4,7 +4,6 @@ ELIM request readiness and `.finalized` marker (mock / laptop only).
 Readiness combines operation JSON with filesystem checks where applicable.
 """
 
-from __future__ import annotations
 
 import os
 from datetime import datetime, timezone

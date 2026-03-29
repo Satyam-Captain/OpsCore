@@ -17,7 +17,6 @@ SSH-backed inventory using the system ``ssh`` binary (subprocess).
 **Not used:** Paramiko.
 """
 
-from __future__ import annotations
 
 import getpass
 import logging

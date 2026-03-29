@@ -4,7 +4,6 @@ Request lifecycle fields on operation JSON (explicit close via finalize / rollba
 Replace session-style checks with real IAM later; structure is intentionally small.
 """
 
-from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any, Dict
