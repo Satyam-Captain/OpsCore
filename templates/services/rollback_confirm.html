@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Confirm rollback · OpsCore{% endblock %}
+
+{% block content %}
+<header class="page-header-block">
+  <h1 class="page-title">Confirm rollback (delete)</h1>
+  <p class="page-description">
+    Operation <code>{{ operation.operation_id[:8] }}…</code>. The following deletes will run in rollback-stack order.
+  </p>
+</header>
+
+<div class="alert alert-error" role="alert">
+  <strong>This will delete previously applied data in reverse order.</strong>
+  Deletes run in rollback-stack order (typically resource row first, then license server). Missing rows are reported when executed.
+</div>
+
+{% for item in preview_items %}
+<div class="card card-scan" style="margin-bottom: 1rem;">
+  <h2 class="page-title" style="font-size: 1.05rem;">DELETE — <code>{{ item.table }}</code> · ID {{ item.id }}</h2>
+  <p class="page-description">Action: <strong>DELETE</strong></p>
+  {% if item.note %}
+    <p class="page-description">{{ item.note }}</p>
+  {% endif %}
+  {% if item.row %}
+    <pre class="operation-pre">{{ item.row | tojson(indent=2) }}</pre>
+  {% elif not item.note %}
+    <p class="page-description">Row summary not available (may already be missing).</p>
+  {% endif %}
+</div>
+{% endfor %}
+
+<p style="margin-top: 1rem;">
+  <form method="post" action="{{ url_for('services.operation_rollback_apply', operation_id=operation.operation_id) }}" style="display: inline;">
+    <button type="submit" class="btn btn-primary">Confirm and execute rollback</button>
+  </form>
+  <a href="{{ preview_back_url }}" class="btn" style="margin-left: 0.5rem;">Back to rollback preview</a>
+  <a href="{{ url_for('services.operation_view', operation_id=operation.operation_id) }}" class="btn" style="margin-left: 0.35rem;">Cancel</a>
+</p>
+{% endblock %}

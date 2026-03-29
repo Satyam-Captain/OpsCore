@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Confirm database apply · OpsCore{% endblock %}
+
+{% block content %}
+<header class="page-header-block">
+  <h1 class="page-title">Confirm database apply</h1>
+  <p class="page-description">
+    Operation <code>{{ operation.operation_id[:8] }}…</code> — request <strong>{{ operation.request_number }}</strong>.
+    {% if table_scope %}
+    Table-scoped apply for <code>{{ table_scope }}</code>.
+    {% endif %}
+  </p>
+</header>
+
+<div class="alert alert-error" role="status">
+  <strong>Review this database action carefully before execution.</strong>
+  You are about to run an <strong>INSERT</strong> into the mock JSON database. This only runs after you click the button below.
+</div>
+
+{% if partial_apply_note is defined and partial_apply_note %}
+  <div class="alert alert-warning" role="status">{{ partial_apply_note }}</div>
+{% endif %}
+
+{% if table_scope is not defined or table_scope == 'license_servers' %}
+<div class="card card-scan" style="margin-bottom: 1.25rem;">
+  <h2 class="page-title" style="font-size: 1.05rem;">INSERT — <code>license_servers</code></h2>
+  <p class="page-description">Action: <strong>INSERT</strong> · Table: <code>license_servers</code></p>
+  <table class="services-ops-table">
+    <thead><tr><th>Column</th><th>Value</th></tr></thead>
+    <tbody>
+      {% for k, v in preview_license_servers | dictsort %}
+        <tr><td><code>{{ k }}</code></td><td>{{ v }}</td></tr>
+      {% else %}
+        <tr><td colspan="2" class="page-description">(no row data)</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if not table_scope or table_scope == 'resources_REF' %}
+<div class="card card-scan" style="margin-bottom: 1.25rem;">
+  <h2 class="page-title" style="font-size: 1.05rem;">INSERT — <code>resources_REF</code></h2>
+  <p class="page-description">Action: <strong>INSERT</strong> · Table: <code>resources_REF</code>
+    {% if table_scope is defined and table_scope == 'resources_REF' and license_server_id_for_preview is defined and license_server_id_for_preview is not none %}
+    · <code>license_server_ID</code> = <strong>{{ license_server_id_for_preview }}</strong>
+    {% endif %}
+  </p>
+  <table class="services-ops-table">
+    <thead><tr><th>Column</th><th>Value</th></tr></thead>
+    <tbody>
+      {% for k, v in preview_resources_ref | dictsort %}
+        <tr><td><code>{{ k }}</code></td><td>{{ v }}</td></tr>
+      {% else %}
+        <tr><td colspan="2" class="page-description">(no row data)</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<p style="margin-top: 1rem;">
+  <form method="post" action="{{ db_apply_action }}" style="display: inline;">
+    <button type="submit" class="btn btn-primary">{% if table_scope %}Confirm and apply this table{% else %}Confirm and apply inserts{% endif %}</button>
+  </form>
+  <a href="{{ preview_back_url | default(table_back_url) }}" class="btn" style="margin-left: 0.5rem;">Back to preview</a>
+  {% if table_scope and table_back_url is defined %}
+  <a href="{{ table_back_url }}" class="btn" style="margin-left: 0.35rem;">Table workspace</a>
+  {% endif %}
+</p>
+{% endblock %}

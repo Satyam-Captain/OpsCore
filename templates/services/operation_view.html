@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+
+{% block title %}Operation {{ operation.operation_id[:8] }}… · OpsCore{% endblock %}
+
+{% block content %}
+<header class="page-header-block">
+  <h1 class="page-title">Operation</h1>
+  <p class="page-description">Persisted state from <code>data/services/operations</code>.</p>
+</header>
+
+<div class="card card-scan">
+  <dl class="operation-dl">
+    <dt>Operation ID</dt>
+    <dd><code>{{ operation.operation_id }}</code></dd>
+
+    <dt>Service name</dt>
+    <dd>{{ service_name }}</dd>
+
+    <dt>Service id</dt>
+    <dd><code>{{ operation.service_id }}</code></dd>
+
+    <dt>Request number</dt>
+    <dd>{{ operation.request_number }}</dd>
+
+    <dt>Deployment targets</dt>
+    <dd>
+      {# Treat missing or JSON null as empty; old files may omit this key. #}
+      {% set targets = operation.get('deployment_targets') or [] %}
+      {% set legacy_cluster = operation.get('cluster') %}
+      {% if targets is iterable and targets is not string and targets | length > 0 %}
+        <ul style="margin: 0; padding-left: 1.25rem;">
+          {% for t in targets %}
+            <li>{{ t }}</li>
+          {% endfor %}
+        </ul>
+      {% elif legacy_cluster is not none and legacy_cluster != '' %}
+        <span class="page-description">{{ legacy_cluster }}</span>
+        <span class="page-description" style="display: block; margin-top: 0.35rem;">(Recorded from an earlier start form; new operations are request-only at start.)</span>
+      {% else %}
+        <span class="page-description">Not selected yet. Cluster/deployment choices happen later or manually.</span>
+      {% endif %}
+    </dd>
+
+    <dt>Status</dt>
+    <dd><strong>{{ operation.status }}</strong></dd>
+
+    <dt>Current step</dt>
+    <dd>{% if operation.current_step %}{{ operation.current_step }}{% else %}—{% endif %}</dd>
+
+    <dt>Created</dt>
+    <dd>{{ operation.created_at }}</dd>
+
+    <dt>Updated</dt>
+    <dd>{{ operation.updated_at }}</dd>
+  </dl>
+
+  <h2 class="page-title" style="font-size: 1.1rem; margin-top: 1.5rem;">Request lifecycle</h2>
+  <dl class="operation-dl">
+    <dt>Lifecycle status</dt>
+    <dd><strong>{{ lifecycle_status }}</strong></dd>
+    {% if lifecycle_closed_at %}
+    <dt>Closed at</dt>
+    <dd>{{ lifecycle_closed_at }}</dd>
+    {% endif %}
+  </dl>
+  {% if lifecycle_execution_enabled %}
+  <p style="margin-top: 0.75rem;">
+    <form method="post" action="{{ url_for('services.operation_lifecycle_finalize', operation_id=operation.operation_id) }}" style="display: inline;">
+      <button type="submit" class="btn btn-primary">Finalize request</button>
+    </form>
+    <form method="post" action="{{ url_for('services.operation_lifecycle_rollback_close', operation_id=operation.operation_id) }}" style="display: inline; margin-left: 0.35rem;">
+      <button type="submit" class="btn">Rollback &amp; close request</button>
+    </form>
+  </p>
+  <p class="page-description" style="margin-top: 0.5rem;">Finalize records completion (ELIM: requires published configs and creates <code>.finalized</code>). Rollback &amp; close runs DB rollback when needed, then closes the request.</p>
+  {% else %}
+  <p class="page-description alert-warning" role="status" style="margin-top: 0.75rem;"><strong>Request is closed.</strong> No further database, generation, or publish actions are allowed on this operation.</p>
+  {% endif %}
+
+  {% if can_delete_closed_record %}
+  <div class="card card-scan" style="margin-top: 1.25rem; border-color: #b91c1c;">
+    <h2 class="page-title" style="font-size: 1.05rem;">Superadmin: remove record</h2>
+    <p class="page-description">Deletes only the operation JSON file under <code>data/services/operations</code>. Sandbox DB and request directories are not removed.</p>
+    <form method="post" action="{{ url_for('services.operation_delete', operation_id=operation.operation_id) }}" style="margin-top: 0.5rem;">
+      <button type="submit" class="btn" style="background: #b91c1c; color: #fff; border: none;">Delete closed request record</button>
+    </form>
+  </div>
+  {% endif %}
+
+  {% if has_workspace_blueprint %}
+  <p style="margin-top: 1rem;">
+    <a href="{{ url_for('services.operation_workspace', operation_id=operation.operation_id) }}" class="btn btn-primary">Open Request Workspace</a>
+  </p>
+  {% if workspace_summary %}
+  <p class="page-description" style="margin-top: 0.35rem;">
+    Blueprint: {{ workspace_summary.total_configs }} config file{% if workspace_summary.total_configs != 1 %}s{% endif %};
+    {{ workspace_summary.published_count }} published.
+  </p>
+  {% endif %}
+  {% endif %}
+
+  {% set si = operation.get('service_inputs') %}
+  {% if si is mapping and si | length > 0 %}
+  <h2 class="page-title" style="font-size: 1.1rem; margin-top: 1.5rem;">Service inputs (saved)</h2>
+  <dl class="operation-dl">
+    {% for k, v in si | dictsort %}
+      <dt><code>{{ k }}</code></dt>
+      <dd>{% if v is not none and v != '' %}{{ v }}{% else %}<span class="page-description">(empty)</span>{% endif %}</dd>
+    {% endfor %}
+  </dl>
+  {% elif has_guided_inputs %}
+  <p class="page-description" style="margin-top: 1rem;">No service inputs saved yet.{% if has_workspace_blueprint %} Use <strong>Open Request Workspace</strong> above to enter guided inputs in the blueprint flow.{% else %} Use the request workspace for this service when available.{% endif %}</p>
+  {% endif %}
+
+  {% if is_elim and not has_elim_inputs and has_guided_inputs %}
+  <p class="page-description" style="margin-top: 0.75rem;">{% if has_workspace_blueprint %}Open the <strong>Request Workspace</strong> to save inputs; DB preview and apply are started from there.{% else %}Save inputs from the request workspace when available to enable DB preview.{% endif %}</p>
+  {% endif %}
+
+  {% if has_db_apply and db_apply_steps %}
+  <h2 class="page-title" style="font-size: 1.1rem; margin-top: 1.5rem;">DB inserts applied</h2>
+  <ul style="margin: 0; padding-left: 1.25rem;">
+    {% for step in db_apply_steps %}
+      <li><code>{{ step.step }}</code> — inserted ID <strong>{{ step.inserted_id }}</strong> ({{ step.status }})</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if elim_config_enabled %}
+  <h2 class="page-title" style="font-size: 1.1rem; margin-top: 1.5rem;">Mock config generation</h2>
+  <p class="page-description">Reference cluster for paths only — not deployment. Supports <code>lsb.resources</code>, <code>lsf.shared</code>, <code>lsf.cluster</code>. Requires DB apply above.</p>
+  {% if not lifecycle_execution_enabled %}
+  <p class="page-description alert-warning">Request is closed — generation and publish are disabled.</p>
+  {% endif %}
+  <dl class="operation-dl">
+    <dt>Generation context cluster</dt>
+    <dd>{% if generation_cluster %}<strong>{{ generation_cluster }}</strong>{% else %}<span class="page-description">Not selected yet</span>{% endif %}</dd>
+  </dl>
+  <p style="margin-top: 0.75rem;">
+    {% if can_set_generation_context and lifecycle_execution_enabled %}
+    <a href="{{ url_for('services.operation_generation_context', operation_id=operation.operation_id) }}" class="btn">Set generation context</a>
+    {% endif %}
+  </p>
+  {% for cfg in elim_config_rows %}
+  <div class="card card-scan" style="margin-top: 1rem; padding: 1rem 1.25rem;">
+    <h3 class="page-title" style="font-size: 1rem;"><code>{{ cfg.config_type }}</code></h3>
+    <dl class="operation-dl" style="margin-bottom: 0.75rem;">
+      <dt>Current (diff left)</dt>
+      <dd><code>{{ cfg.current_path or '—' }}</code>{% if cfg.current_path and not cfg.cur_exists %} <span class="page-description">(missing)</span>{% endif %}</dd>
+      <dt>Generated (diff right)</dt>
+      <dd><code>{{ cfg.generated_path or '—' }}</code></dd>
+      {% if cfg.generation and cfg.generation.get('generated_path') %}
+      <dt>Last generated</dt>
+      <dd><code>{{ cfg.generation.generated_path }}</code> — {{ cfg.generation.status }}</dd>
+      {% endif %}
+      {% if cfg.publish and cfg.publish.get('destination_path') %}
+      <dt>Last published</dt>
+      <dd><code>{{ cfg.publish.destination_path }}</code> — {{ cfg.publish.status }}</dd>
+      {% endif %}
+    </dl>
+    <p style="margin: 0;">
+      {% if cfg.can_generate and lifecycle_execution_enabled %}
+      <form method="post" action="{{ url_for('services.operation_generate_config', operation_id=operation.operation_id, config_type=cfg.config_type) }}" style="display: inline;">
+        <button type="submit" class="btn btn-primary">Generate</button>
+      </form>
+      {% endif %}
+      {% if cfg.can_diff %}
+      <a href="{{ url_for('services.operation_config_diff', operation_id=operation.operation_id, config_type=cfg.config_type) }}" class="btn" style="margin-left: 0.35rem;">View diff</a>
+      {% endif %}
+      {% if cfg.can_publish and lifecycle_execution_enabled %}
+      <form method="post" action="{{ url_for('services.operation_publish_config', operation_id=operation.operation_id, config_type=cfg.config_type) }}" style="display: inline; margin-left: 0.35rem;">
+        <button type="submit" class="btn">Publish</button>
+      </form>
+      {% endif %}
+    </p>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if is_elim %}
+  <h2 class="page-title" style="font-size: 1.1rem; margin-top: 1.5rem;">Request finalization (mock)</h2>
+  <p class="page-description" style="margin-top: 0.35rem;">
+    <a href="{{ url_for('services.operation_readiness', operation_id=operation.operation_id) }}" class="btn">Check request readiness</a>
+  </p>
+  {% if elim_readiness_summary %}
+  <p class="page-description" style="margin-top: 0.5rem;">
+    {% if elim_readiness_summary.ready %}
+      <strong>Ready to finalize</strong>
+      {% if elim_readiness_summary.finalized_exists %}
+      — <code>.finalized</code> exists on disk.
+      {% endif %}
+    {% else %}
+      <strong>Not ready to finalize</strong>
+      {% if elim_readiness_summary.missing_count > 0 %}
+      ({{ elim_readiness_summary.missing_count }} blocking issue{% if elim_readiness_summary.missing_count != 1 %}s{% endif %})
+      {% endif %}
+    {% endif %}
+  </p>
+  {% endif %}
+  {% if elim_finalization %}
+  <dl class="operation-dl" style="margin-top: 0.75rem;">
+    <dt>Finalization recorded</dt>
+    <dd>
+      Status: <strong>{{ elim_finalization.get('status', '—') }}</strong>
+      {% if elim_finalization.get('marker_path') %}
+      <br><code>{{ elim_finalization.marker_path }}</code>
+      {% endif %}
+      {% if elim_finalization.get('created_at') %}
+      <br><span class="page-description">{{ elim_finalization.created_at }}</span>
+      {% endif %}
+    </dd>
+  </dl>
+  {% endif %}
+  {% endif %}
+
+  {% if show_rollback_button and lifecycle_execution_enabled %}
+  <p style="margin-top: 1rem;">
+    <a href="{{ url_for('services.operation_rollback_preview', operation_id=operation.operation_id) }}" class="btn">Rollback changes</a>
+    <span class="page-description" style="display: block; margin-top: 0.35rem;">Use <strong>Rollback &amp; close request</strong> above to roll back and release the global lock in one step.</span>
+  </p>
+  {% endif %}
+
+  {% if rollback_executed %}
+  <h2 class="page-title" style="font-size: 1.1rem; margin-top: 1.5rem;">Rollback executed</h2>
+  {% if rollback_results | length > 0 %}
+  <ul style="margin: 0; padding-left: 1.25rem;">
+    {% for r in rollback_results %}
+      <li><code>{{ r.step }}</code> — id <strong>{{ r.id }}</strong> — <strong>{{ r.status }}</strong>{% if r.error %} ({{ r.error }}){% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="page-description">No per-step rollback entries were stored.</p>
+  {% endif %}
+  {% endif %}
+
+  {% if has_rollback_stack and rollback_stack_entries %}
+  <h2 class="page-title" style="font-size: 1.1rem; margin-top: 1.5rem;">
+    {% if rollback_executed %}Rollback stack (audit){% else %}Rollback stack (planned){% endif %}
+  </h2>
+  <p class="page-description">{% if rollback_executed %}Kept for audit after rollback.{% else %}Order: resource row first, then license server.{% endif %}</p>
+  <ul style="margin: 0; padding-left: 1.25rem;">
+    {% for entry in rollback_stack_entries %}
+      <li><code>{{ entry.type }}</code> — {{ entry.table }} id <strong>{{ entry.id }}</strong></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <h2 class="page-title" style="font-size: 1.1rem; margin-top: 1.5rem;">Collected inputs</h2>
+  <pre class="operation-pre">{{ operation.inputs | tojson(indent=2) }}</pre>
+
+  <h2 class="page-title" style="font-size: 1.1rem; margin-top: 1.5rem;">Step results</h2>
+  <pre class="operation-pre">{{ operation.get('step_results', {}) | tojson(indent=2) }}</pre>
+
+  <p style="margin-top: 1.25rem;">
+    <a href="{{ url_for('services.index') }}" class="btn btn-primary">Back to services</a>
+  </p>
+</div>
+{% endblock %}

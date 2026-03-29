@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Generation context · OpsCore{% endblock %}
+
+{% block content %}
+<header class="page-header-block">
+  <h1 class="page-title">Generation context cluster</h1>
+  <p class="page-description">
+    This cluster is used only as a <strong>reference</strong> for mock file paths (current vs generated). It is not deployment.
+    Files are read/written under <code>data/sandbox/current/&lt;cluster&gt;/</code> and <code>data/sandbox/generated/&lt;cluster&gt;/</code>.
+  </p>
+</header>
+
+<form method="post" class="card card-scan" action="{{ url_for('services.operation_generation_context', operation_id=operation.operation_id) }}">
+  <label for="generation_context_cluster">Cluster</label>
+  <input type="text" name="generation_context_cluster" id="generation_context_cluster" value="{{ current_cluster }}" placeholder="e.g. tou_q" autocomplete="off">
+
+  <p class="page-description" style="margin-top: 0.5rem;">Leave empty and save to clear the value.</p>
+
+  <p style="margin-top: 1rem;">
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a href="{{ url_for('services.operation_view', operation_id=operation.operation_id) }}" class="btn" style="margin-left: 0.5rem;">Cancel</a>
+  </p>
+</form>
+{% endblock %}

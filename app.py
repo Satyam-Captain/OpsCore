@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 from typing import List
 
 from flask import Flask, flash, redirect, render_template, request, session, url_for
@@ -17,9 +18,26 @@ from core.side_by_side_diff import build_side_by_side_rows
 from core.text_diff import unified_diff_text
 from providers.exceptions import SshReadError
 from providers.factory import create_inventory_provider
+from services.authz import SERVICE_ROLE_NONCE_CONFIG_KEY
+from services.routes import services_bp
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "opscore-dev-insecure-change-for-production")
+# New on each process start: service role in the session cookie is tied to this nonce so
+# restarting the dev server does not leave clients stuck as superadmin from the old process.
+app.config[SERVICE_ROLE_NONCE_CONFIG_KEY] = secrets.token_hex(16)
+
+app.register_blueprint(services_bp)
+
+
+@app.context_processor
+def inject_nav_flags():
+    """Expose lightweight flags for base template (e.g. Services nav)."""
+    try:
+        s = load_settings()
+        return {"nav_service_enabled": bool(s.get("service_enabled", True))}
+    except (OSError, ValueError, TypeError, KeyError):
+        return {"nav_service_enabled": False}
 
 
 def load_sources():

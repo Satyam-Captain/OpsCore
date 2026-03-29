@@ -13,5 +13,26 @@
     "scripts_bin",
     "scripts_conf",
     "scripts_lib"
-  ]
+  ],
+
+  "_services_readme": "Service-layer settings for the new controlled operations workflow. Keep these adapter-driven so local laptop and office deployment differ by config, not code.",
+  "service_enabled": true,
+  "service_mode": "mock",
+  "service_db_backend": "json",
+  "_service_mariadb_notes": "When service_db_backend is mariadb: set service_mariadb_host, service_mariadb_user, service_mariadb_database (default tLSF). Password via service_mariadb_password or env OPSCORE_MARIADB_PASSWORD. Read-only: apply/rollback still need json backend.",
+  "service_mariadb_host": "",
+  "service_mariadb_port": 3306,
+  "service_mariadb_user": "",
+  "service_mariadb_password": "",
+  "service_mariadb_database": "tLSF",
+  "service_mariadb_connect_timeout": 10,
+  "service_script_backend": "mock",
+  "service_request_backend": "local",
+  "_service_gmc_notes": "When service_request_backend is gmc, service_gmc_requests_root is the LSF10CFG directory containing REQ-<n> folders (default in code: /opt/platform/gmc/modCFG/work/.requests/LSF10CFG).",
+  "service_gmc_requests_root": "/opt/platform/gmc/modCFG/work/.requests/LSF10CFG",
+  "service_defs_root": "services/defs",
+  "service_operations_root": "data/services/operations",
+  "service_sandbox_root": "data/sandbox",
+  "service_require_request_dir": true,
+  "service_allow_request_bypass": true
 }

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Config diff · {{ config_type }} · OpsCore{% endblock %}
+
+{% block content %}
+<header class="page-header-block">
+  <h1 class="page-title">Config diff: {{ config_type }}</h1>
+  <p class="page-description">
+    Operation <code>{{ operation.operation_id[:8] }}…</code> — cluster <strong>{{ cluster }}</strong>.
+    Unified diff uses <code>core.text_diff.unified_diff_text</code> (same engine as Compare).
+  </p>
+</header>
+
+<div class="card card-scan" style="margin-bottom: 1rem;">
+  <dl class="operation-dl">
+    <dt>Current file</dt>
+    <dd><code>{{ current_path }}</code>{% if current_missing %} <span class="page-description">(missing — left side treated as empty)</span>{% endif %}</dd>
+    <dt>Generated file</dt>
+    <dd><code>{{ generated_path }}</code></dd>
+  </dl>
+</div>
+
+<section class="diff-section diff-section-unified" aria-labelledby="svc-diff-heading">
+  <h3 id="svc-diff-heading" class="diff-section-title">Unified diff</h3>
+  <div class="diff-unified-box">
+    <pre class="diff-output diff-output-unified">{{ diff_text }}</pre>
+  </div>
+</section>
+
+<p style="margin-top: 1.25rem;">
+  <a href="{{ url_for('services.operation_view', operation_id=operation.operation_id) }}" class="btn btn-primary">Back to operation</a>
+</p>
+{% endblock %}

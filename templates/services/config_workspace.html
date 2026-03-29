@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% macro status_label(s) -%}
+{%- if s == 'not_started' -%}Not started
+{%- elif s == 'in_progress' -%}In progress
+{%- elif s == 'published' -%}Published
+{%- elif s == 'rolled_back' -%}Rolled back
+{%- elif s == 'applied' -%}Applied
+{%- elif s == 'reused' -%}Reused (satisfied)
+{%- else -%}{{ s }}
+{%- endif -%}
+{%- endmacro %}
+
+{% block title %}Config workspace · {{ cw.config.label }} · OpsCore{% endblock %}
+
+{% block content %}
+<style>
+  .workspace-badge { font-size: 0.75rem; font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; }
+  .workspace-status--config.workspace-status--not_started,
+  .workspace-status--table.workspace-status--not_started { background: #e5e7eb; color: #1f2937; }
+  .workspace-status--config.workspace-status--in_progress,
+  .workspace-status--table.workspace-status--in_progress { background: #bfdbfe; color: #1e3a5f; }
+  .workspace-status--config.workspace-status--published,
+  .workspace-status--table.workspace-status--published { background: #86efac; color: #14532d; }
+  .workspace-status--config.workspace-status--rolled_back,
+  .workspace-status--table.workspace-status--rolled_back { background: #fecaca; color: #7f1d1d; }
+  .workspace-status--table.workspace-status--reused { background: #e9d5ff; color: #4c1d95; }
+  .workspace-status--table.workspace-status--applied { background: #d1fae5; color: #064e3b; }
+  .cw-workflow { margin: 0; padding: 0.85rem 1rem; border-radius: 6px; background: #f8fafc; border: 1px solid #e2e8f0; }
+  .cw-workflow--closed { background: #fef3c7; border-color: #fcd34d; }
+  .cw-workflow dl { margin: 0.5rem 0 0; display: grid; grid-template-columns: 8.5rem 1fr; gap: 0.35rem 0.75rem; align-items: baseline; }
+  .cw-workflow dt { margin: 0; font-weight: 600; color: #475569; font-size: 0.85rem; }
+  .cw-workflow dd { margin: 0; font-size: 0.95rem; }
+  .cw-workflow .cw-actions { margin-top: 0.85rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+  .cw-workflow .btn-muted { opacity: 0.65; cursor: not-allowed; pointer-events: none; }
+</style>
+<header class="page-header-block">
+  <h1 class="page-title">Config workspace</h1>
+  <p class="page-description">
+    <a href="{{ url_for('services.operation_workspace', operation_id=operation.operation_id) }}">← Full request workspace</a>
+  </p>
+</header>
+
+<div class="card card-scan">
+  <h2 class="page-title" style="font-size: 1.1rem;">Section A — Request &amp; config</h2>
+  <dl class="operation-dl">
+    <dt>Request number</dt>
+    <dd>{{ operation.request_number or '—' }}</dd>
+    <dt>Service</dt>
+    <dd>{{ service_name }}</dd>
+    <dt>Config</dt>
+    <dd><strong>{{ cw.config.label }}</strong> <code>{{ cw.config.id }}</code></dd>
+    <dt>Status</dt>
+    <dd><span class="workspace-badge {{ cw.config.css_class }}">{{ status_label(cw.config.status) }}</span></dd>
+    <dt>Capabilities</dt>
+    <dd class="page-description">
+      {% if cw.config.generation_supported %}Generate{% endif %}
+      {% if cw.config.diff_supported %}{% if cw.config.generation_supported %} · {% endif %}Diff{% endif %}
+      {% if cw.config.publish_supported %}{% if cw.config.generation_supported or cw.config.diff_supported %} · {% endif %}Publish{% endif %}
+      {% if not cw.config.generation_supported and not cw.config.diff_supported and not cw.config.publish_supported %}
+      (none declared)
+      {% endif %}
+    </dd>
+  </dl>
+</div>
+
+{% set wf = cw.workflow if cw.workflow is defined else none %}
+{% if wf %}
+<div class="card card-scan" style="margin-top: 1rem;">
+  <h2 class="page-title" style="font-size: 1.1rem;">Workflow status</h2>
+  <div class="cw-workflow{% if not wf.lifecycle_active %} cw-workflow--closed{% endif %}">
+    {% if not wf.lifecycle_active %}
+    <p class="page-description" style="margin: 0 0 0.5rem 0;"><strong>Request is closed</strong> — execution actions below are disabled; use readiness or workspace navigation for audit context.</p>
+    {% endif %}
+    <dl>
+      <dt>Current stage</dt>
+      <dd>{{ wf.current_stage_label }}</dd>
+      <dt>Next step</dt>
+      <dd>{{ wf.next_action_label }}</dd>
+    </dl>
+    {% if wf.blocked_reasons and wf.blocked_reasons | length > 0 %}
+    <div class="alert alert-error" role="status" style="margin-top: 0.65rem;">
+      <strong>Blocked:</strong>
+      <ul style="margin: 0.35rem 0 0 1.25rem;">
+        {% for br in wf.blocked_reasons %}
+        <li>{{ br }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% if wf.all_configs_complete_message %}
+    <p class="page-description" style="margin-top: 0.65rem;"><strong>{{ wf.all_configs_complete_message }}</strong></p>
+    {% endif %}
+    <div class="cw-actions">
+      {% if wf.primary %}
+        {% if wf.primary.enabled %}
+          {% if wf.primary.kind == 'link' %}
+          <a href="{{ wf.primary.url }}" class="btn btn-primary">{{ wf.primary.label }}</a>
+          {% elif wf.primary.kind == 'form_post' %}
+          <form method="post" action="{{ wf.primary.action }}" style="display: inline;">
+            <button type="submit" class="btn btn-primary">{{ wf.primary.label }}</button>
+          </form>
+          {% endif %}
+        {% else %}
+          <span class="btn btn-primary btn-muted">{{ wf.primary.label }}</span>
+          {% if wf.primary.blocked_reason %}
+          <span class="page-description">{{ wf.primary.blocked_reason }}</span>
+          {% endif %}
+        {% endif %}
+      {% endif %}
+      {% for s in wf.secondary_actions %}
+        {% if s.enabled %}
+          {% if s.kind == 'link' %}
+          <a href="{{ s.url }}" class="btn">{{ s.label }}</a>
+          {% elif s.kind == 'form_post' %}
+          <form method="post" action="{{ s.action }}" style="display: inline;">
+            <button type="submit" class="btn">{{ s.label }}</button>
+          </form>
+          {% endif %}
+        {% else %}
+          <span class="btn btn-muted">{{ s.label }}</span>
+          {% if s.blocked_reason %}<span class="page-description">{{ s.blocked_reason }}</span>{% endif %}
+        {% endif %}
+      {% endfor %}
+    </div>
+    {% if wf.available_actions and wf.available_actions | length > 0 %}
+    <p class="page-description" style="margin-top: 0.75rem; margin-bottom: 0.25rem;">Action availability (reference):</p>
+    <ul style="margin: 0 0 0 1.25rem; font-size: 0.88rem;">
+      {% for a in wf.available_actions %}
+      <li>
+        {% if a.enabled %}<strong>{{ a.label }}</strong> — available{% else %}<span style="opacity: 0.75;">{{ a.label }}</span>{% if a.blocked_reason %} — {{ a.blocked_reason }}{% endif %}{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<div class="card card-scan" style="margin-top: 1rem;">
+  <h2 class="page-title" style="font-size: 1.1rem;">Section B — Dependencies</h2>
+  {% if cw.config.has_manual_tables %}
+  {% if cw.manual_tables | length == 0 %}
+  <p class="page-description">Blueprint lists manual tables but none resolved against the service table registry.</p>
+  {% else %}
+  <table style="width: 100%; border-collapse: collapse; margin-top: 0.5rem;">
+    <thead>
+      <tr>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Table</th>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Status</th>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Notes</th>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Table workspace</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in cw.manual_tables %}
+      <tr>
+        <td style="padding: 0.4rem 0.5rem; vertical-align: top;">
+          <strong>{{ t.label }}</strong><br><code style="font-size: 0.8rem;">{{ t.table_name }}</code>
+        </td>
+        <td style="padding: 0.4rem 0.5rem; vertical-align: top;">
+          <span class="workspace-badge {{ t.css_class }}">{{ status_label(t.status) }}</span>
+        </td>
+        <td style="padding: 0.4rem 0.5rem; vertical-align: top;">
+          {{ t.note }}
+          {% if t.is_reused %}
+          <br><span class="page-description"><strong>Already satisfied / reused</strong> — no new table input for this config.</span>
+          {% elif t.is_actionable %}
+          <br><span class="page-description"><strong>Needs upstream input/apply</strong> — use service inputs and DB apply from actions below.</span>
+          {% endif %}
+        </td>
+        <td style="padding: 0.4rem 0.5rem; vertical-align: top;">
+          <a href="{{ url_for('services.operation_table_workspace', operation_id=operation.operation_id, config_id=cw.config.id, table_id=t.table_id) }}" class="btn" style="font-size: 0.8rem;">{% if t.is_actionable %}Open table{% else %}Review table{% endif %}</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  {% else %}
+  <p class="page-description"><strong>No manual DB table input required for this config.</strong></p>
+  <p class="page-description">{{ cw.config.generation_only_note }}</p>
+  {% endif %}
+</div>
+
+<div class="card card-scan" style="margin-top: 1rem;">
+  <h2 class="page-title" style="font-size: 1.1rem;">Section C — Actions</h2>
+  <p class="page-description" style="margin-bottom: 0.75rem;">All routes in one place; follow <strong>Workflow status</strong> above for the recommended order.</p>
+  {% if not (lifecycle_execution_enabled | default(true)) %}
+  <p class="page-description alert-warning" style="margin-bottom: 0.75rem;">Request is closed — inputs, DB apply, generation, publish, and rollback are disabled.</p>
+  {% endif %}
+  <p style="margin: 0;">
+    {% if cw.actions.can_enter_inputs and (lifecycle_execution_enabled | default(true)) %}
+    <a href="{{ url_for('services.operation_inputs', operation_id=operation.operation_id) }}" class="btn">Enter service inputs</a>
+    {% endif %}
+    {% if cw.actions.can_preview_db %}
+    <a href="{{ url_for('services.operation_db_preview', operation_id=operation.operation_id) }}" class="btn" style="margin-left: 0.35rem;">Preview DB changes</a>
+    {% endif %}
+    {% if cw.actions.can_generation_context and (lifecycle_execution_enabled | default(true)) %}
+    <a href="{{ url_for('services.operation_generation_context', operation_id=operation.operation_id) }}" class="btn" style="margin-left: 0.35rem;">Generation context</a>
+    {% endif %}
+    {% if cw.actions.can_generate and (lifecycle_execution_enabled | default(true)) %}
+    <form method="post" action="{{ url_for('services.operation_generate_config', operation_id=operation.operation_id, config_type=cw.config.id) }}" style="display: inline; margin-left: 0.35rem;">
+      <button type="submit" class="btn btn-primary">Generate</button>
+    </form>
+    {% endif %}
+    {% if cw.actions.can_view_diff %}
+    <a href="{{ url_for('services.operation_config_diff', operation_id=operation.operation_id, config_type=cw.config.id) }}" class="btn" style="margin-left: 0.35rem;">View diff</a>
+    {% endif %}
+    {% if cw.actions.can_publish and lifecycle_execution_enabled %}
+    <form method="post" action="{{ url_for('services.operation_publish_config', operation_id=operation.operation_id, config_type=cw.config.id) }}" style="display: inline; margin-left: 0.35rem;">
+      <button type="submit" class="btn">Publish</button>
+    </form>
+    {% endif %}
+    {% if cw.actions.can_rollback and (lifecycle_execution_enabled | default(true)) %}
+    <a href="{{ url_for('services.operation_rollback_preview', operation_id=operation.operation_id) }}" class="btn" style="margin-left: 0.35rem;">Rollback changes</a>
+    {% endif %}
+    {% if cw.actions.can_readiness %}
+    <a href="{{ url_for('services.operation_readiness', operation_id=operation.operation_id) }}" class="btn" style="margin-left: 0.35rem;">Check readiness</a>
+    {% endif %}
+  </p>
+  {% if cw.show_elim_actions and cw.actions.can_apply_db %}
+  <p class="page-description" style="margin-top: 0.75rem;">Database apply is available from <strong>Preview DB changes</strong> when validation passes.</p>
+  {% endif %}
+</div>
+
+<div class="card card-scan" style="margin-top: 1rem;">
+  <h2 class="page-title" style="font-size: 1.1rem;">Section D — Stored state (snippets)</h2>
+  <h3 class="page-title" style="font-size: 0.95rem; margin-top: 0.75rem;">DB apply (request)</h3>
+  {% if cw.state.db_apply_steps and cw.state.db_apply_steps | length > 0 %}
+  <ul style="margin: 0.25rem 0 0 1.25rem;">
+    {% for step in cw.state.db_apply_steps %}
+    <li><code>{{ step.step }}</code> — {{ step.status }}{% if 'inserted_id' in step %} (id {{ step.inserted_id }}){% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="page-description">No db_apply steps recorded.</p>
+  {% endif %}
+
+  <h3 class="page-title" style="font-size: 0.95rem; margin-top: 1rem;">Generation (this config)</h3>
+  {% if cw.state.generation %}
+  <pre class="operation-pre" style="font-size: 0.8rem;">{{ cw.state.generation | tojson(indent=2) }}</pre>
+  {% else %}
+  <p class="page-description">No generation step result for <code>{{ cw.config.id }}</code>.</p>
+  {% endif %}
+
+  <h3 class="page-title" style="font-size: 0.95rem; margin-top: 1rem;">Publish (this config)</h3>
+  {% if cw.state.publish %}
+  <pre class="operation-pre" style="font-size: 0.8rem;">{{ cw.state.publish | tojson(indent=2) }}</pre>
+  {% else %}
+  <p class="page-description">No publish step result for <code>{{ cw.config.id }}</code>.</p>
+  {% endif %}
+</div>
+
+<p style="margin-top: 1.25rem;">
+  <a href="{{ url_for('services.operation_workspace', operation_id=operation.operation_id) }}" class="btn btn-primary">Full workspace</a>
+  <a href="{{ url_for('services.operation_view', operation_id=operation.operation_id) }}" class="btn" style="margin-left: 0.35rem;">Operation detail</a>
+</p>
+{% endblock %}

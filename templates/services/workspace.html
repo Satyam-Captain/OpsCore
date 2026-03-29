@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% macro status_label(s) -%}
+{%- if s == 'not_started' -%}Not started
+{%- elif s == 'in_progress' -%}In progress
+{%- elif s == 'published' -%}Published
+{%- elif s == 'rolled_back' -%}Rolled back
+{%- elif s == 'applied' -%}Applied
+{%- elif s == 'reused' -%}Reused (satisfied)
+{%- else -%}{{ s }}
+{%- endif -%}
+{%- endmacro %}
+
+{% block title %}{{ operation.request_number or 'Request workspace' }} · OpsCore{% endblock %}
+
+{% block content %}
+<style>
+  .workspace-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    margin: 1rem 0 1.25rem;
+  }
+  .workspace-strip a {
+    text-decoration: none;
+    color: inherit;
+  }
+  .workspace-strip-item {
+    min-width: 7.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border: 1px solid rgba(0,0,0,0.08);
+  }
+  .workspace-status--config.workspace-status--not_started,
+  .workspace-status--table.workspace-status--not_started {
+    background: #e5e7eb;
+    color: #1f2937;
+  }
+  .workspace-status--config.workspace-status--in_progress,
+  .workspace-status--table.workspace-status--in_progress {
+    background: #bfdbfe;
+    color: #1e3a5f;
+  }
+  .workspace-status--config.workspace-status--published,
+  .workspace-status--table.workspace-status--published {
+    background: #86efac;
+    color: #14532d;
+  }
+  .workspace-status--config.workspace-status--rolled_back,
+  .workspace-status--table.workspace-status--rolled_back {
+    background: #fecaca;
+    color: #7f1d1d;
+  }
+  .workspace-status--table.workspace-status--reused {
+    background: #e9d5ff;
+    color: #4c1d95;
+  }
+  .workspace-status--table.workspace-status--applied {
+    background: #d1fae5;
+    color: #064e3b;
+  }
+  .workspace-section {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border, #e5e7eb);
+  }
+  .workspace-section h2 {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .workspace-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+  }
+</style>
+
+<header class="page-header-block">
+  <h1 class="page-title">{{ operation.request_number or 'Request workspace' }}</h1>
+  <p class="page-description">
+    {% if workspace.blueprint_meta and workspace.blueprint_meta.description %}
+      {{ workspace.blueprint_meta.description }}
+    {% else %}
+      Overview driven by the service request blueprint (config files and table dependencies).
+    {% endif %}
+  </p>
+</header>
+
+<div class="card card-scan">
+  <h2 class="page-title" style="font-size: 1.1rem;">Request</h2>
+  <dl class="operation-dl">
+    <dt>Request number</dt>
+    <dd>{{ operation.request_number or '—' }}</dd>
+    <dt>Service</dt>
+    <dd>{{ service_name }}</dd>
+    <dt>Operation ID</dt>
+    <dd><code>{{ operation.operation_id }}</code></dd>
+    <dt>Status</dt>
+    <dd><strong>{{ operation.status or '—' }}</strong></dd>
+  </dl>
+
+  {% if workspace.show_elim_actions %}
+  <p style="margin-top: 1rem;">
+    {% if workspace.show_elim_actions and has_elim_inputs %}
+    <a href="{{ url_for('services.operation_db_preview', operation_id=operation.operation_id) }}" class="btn">Preview DB changes</a>
+    {% endif %}
+    {% if workspace.show_elim_actions and has_db_apply %}
+    <a href="{{ url_for('services.operation_generation_context', operation_id=operation.operation_id) }}" class="btn" style="margin-left: 0.35rem;">Generation context</a>
+    {% endif %}
+    {% if workspace.show_elim_actions %}
+    <a href="{{ url_for('services.operation_readiness', operation_id=operation.operation_id) }}" class="btn" style="margin-left: 0.35rem;">Readiness</a>
+    {% endif %}
+  </p>
+  {% endif %}
+</div>
+
+{% if not workspace.has_blueprint %}
+<div class="card card-scan" style="margin-top: 1rem;">
+  <p class="page-description">{{ workspace.fallback_message or 'No blueprint metadata available.' }}</p>
+  <p style="margin-top: 0.75rem;"><a href="{{ url_for('services.operation_view', operation_id=operation.operation_id) }}" class="btn btn-primary">Back to operation</a></p>
+</div>
+{% else %}
+
+{% if workspace.blueprint_meta %}
+<div class="card card-scan" style="margin-top: 1rem;">
+  <h2 class="page-title" style="font-size: 1rem;">Blueprint</h2>
+  <dl class="operation-dl" style="margin-bottom: 0;">
+    {% if workspace.blueprint_meta.label %}
+    <dt>Label</dt>
+    <dd>{{ workspace.blueprint_meta.label }}</dd>
+    {% endif %}
+    {% if workspace.blueprint_meta.mode %}
+    <dt>Mode</dt>
+    <dd><code>{{ workspace.blueprint_meta.mode }}</code></dd>
+    {% endif %}
+    {% if workspace.blueprint_meta.completion_strategy %}
+    <dt>Completion strategy</dt>
+    <dd><code>{{ workspace.blueprint_meta.completion_strategy }}</code></dd>
+    {% endif %}
+  </dl>
+</div>
+{% endif %}
+
+<div class="card card-scan" style="margin-top: 1rem;">
+  <h2 class="page-title" style="font-size: 1rem;">Config progress</h2>
+  <p class="page-description" style="margin-bottom: 0.5rem;">Ordered config files (gray = not started, blue = in progress, green = published, red = rolled back).</p>
+  <div class="workspace-strip" role="list">
+    {% for chip in workspace.config_strip %}
+    <div class="workspace-strip-item {{ chip.css_class }}" role="listitem" style="display: flex; flex-direction: column; gap: 0.35rem;">
+      <a href="{{ chip.anchor_href }}" style="text-decoration: none; color: inherit;">
+        <div>{{ chip.short_label }}</div>
+        <div style="font-size: 0.68rem; font-weight: 500; margin-top: 0.25rem; opacity: 0.92; line-height: 1.35;">{% if chip.stage_line is defined and chip.stage_line %}{{ chip.stage_line }}{% else %}{{ status_label(chip.status) }}{% endif %}</div>
+      </a>
+      <a href="{{ url_for('services.operation_config_workspace', operation_id=operation.operation_id, config_id=chip.id) }}" class="btn" style="font-size: 0.75rem; padding: 0.25rem 0.45rem; align-self: flex-start;">Open config workspace</a>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% for section in workspace.config_sections %}
+<section class="card card-scan workspace-section" id="{{ section.anchor_id }}">
+  <h2 class="page-title" style="font-size: 1.1rem;">
+    <span>{{ section.label }}</span>
+    <span class="workspace-badge {{ section.css_class }}">{{ status_label(section.status) }}</span>
+    <code style="font-size: 0.85rem; font-weight: normal;">{{ section.id }}</code>
+  </h2>
+  {% if section.stage_line is defined and section.stage_line %}
+  <p class="page-description" style="margin: 0.35rem 0 0;">{{ section.stage_line }}</p>
+  {% endif %}
+  <p style="margin: 0.35rem 0 0;">
+    <a href="{{ url_for('services.operation_config_workspace', operation_id=operation.operation_id, config_id=section.id) }}" class="btn" style="font-size: 0.85rem;">Open config workspace</a>
+  </p>
+
+  {% if section.has_manual_tables %}
+  <h3 class="page-title" style="font-size: 0.95rem; margin-top: 1rem;">Required tables</h3>
+  {% if section.tables | length == 0 %}
+  <p class="page-description">Table dependencies are declared in the blueprint but none matched the service table registry.</p>
+  {% else %}
+  <table style="width: 100%; border-collapse: collapse; margin-top: 0.5rem;">
+    <thead>
+      <tr>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Table</th>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Status</th>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in section.tables %}
+      <tr>
+        <td style="padding: 0.4rem 0.5rem; vertical-align: top;">
+          <strong>{{ t.label }}</strong><br>
+          <code style="font-size: 0.8rem;">{{ t.table_name }}</code>
+        </td>
+        <td style="padding: 0.4rem 0.5rem; vertical-align: top;">
+          <span class="workspace-badge {{ t.css_class }}">{{ status_label(t.status) }}</span>
+        </td>
+        <td style="padding: 0.4rem 0.5rem; vertical-align: top;">
+          {% if t.satisfied_note %}
+            {{ t.satisfied_note }}
+          {% elif t.reused %}
+            <span class="page-description">Reused within this request.</span>
+          {% elif t.status == 'applied' %}
+            <span class="page-description">Satisfied for this config.</span>
+          {% elif t.status == 'not_started' %}
+            <span class="page-description">Needs DB apply / inputs upstream.</span>
+          {% else %}
+            <span class="page-description">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  {% else %}
+  <h3 class="page-title" style="font-size: 0.95rem; margin-top: 1rem;">Database tables</h3>
+  <p class="page-description">{{ section.generation_only_note }}</p>
+  {% endif %}
+
+  {% if workspace.show_elim_actions and (section.generation_supported or section.diff_supported or section.publish_supported) %}
+  <h3 class="page-title" style="font-size: 0.95rem; margin-top: 1rem;">Actions</h3>
+  {% if not (lifecycle_execution_enabled | default(true)) %}
+  <p class="page-description alert-warning" style="margin: 0.35rem 0 0;">Request is closed — Generate and Publish are disabled.</p>
+  {% endif %}
+  <p style="margin: 0.35rem 0 0;">
+    {% if section.generation_supported and section.actions.generate and (lifecycle_execution_enabled | default(true)) %}
+    <form method="post" action="{{ url_for('services.operation_generate_config', operation_id=operation.operation_id, config_type=section.id) }}" style="display: inline;">
+      <button type="submit" class="btn btn-primary">Generate</button>
+    </form>
+    {% endif %}
+    {% if section.diff_supported and section.actions.diff %}
+    <a href="{{ url_for('services.operation_config_diff', operation_id=operation.operation_id, config_type=section.id) }}" class="btn" style="margin-left: 0.35rem;">View diff</a>
+    {% endif %}
+    {% if section.publish_supported and section.actions.publish and (lifecycle_execution_enabled | default(true)) %}
+    <form method="post" action="{{ url_for('services.operation_publish_config', operation_id=operation.operation_id, config_type=section.id) }}" style="display: inline; margin-left: 0.35rem;">
+      <button type="submit" class="btn">Publish</button>
+    </form>
+    {% endif %}
+    {% if section.generation_supported and not section.actions.generate %}
+    <span class="page-description" style="margin-left: 0.35rem;">Generate unavailable (set generation context and apply DB first).</span>
+    {% endif %}
+  </p>
+  {% elif not workspace.show_elim_actions and (section.generation_supported or section.diff_supported or section.publish_supported) %}
+  <p class="page-description" style="margin-top: 0.75rem;">Config actions apply to ELIM operations only; this workspace still shows blueprint structure.</p>
+  {% endif %}
+</section>
+{% endfor %}
+
+<p style="margin-top: 1.5rem;">
+  <a href="{{ url_for('services.operation_view', operation_id=operation.operation_id) }}" class="btn btn-primary">Back to operation</a>
+</p>
+
+{% endif %}
+{% endblock %}

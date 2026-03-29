@@ -53,6 +53,35 @@ code {
   border: 1px solid var(--color-border);
 }
 
+.operation-dl {
+  display: grid;
+  grid-template-columns: minmax(8rem, 12rem) 1fr;
+  gap: 0.35rem 1rem;
+  margin: 0;
+}
+
+.operation-dl dt {
+  margin: 0;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+.operation-dl dd {
+  margin: 0;
+}
+
+.operation-pre {
+  margin: 0.5rem 0 0;
+  padding: 1rem;
+  background: var(--color-surface-inner);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  overflow-x: auto;
+  line-height: 1.45;
+}
+
 /* ——— Application shell ——— */
 .app-shell {
   position: sticky;
@@ -996,6 +1025,85 @@ tr.line-modified td.diff-sbs-left {
 tr.line-modified td.diff-sbs-right {
   background: #fffbeb;
   border-right: 3px solid #d97706;
+}
+
+/* ——— Service guided inputs ——— */
+.services-input-row {
+  margin-bottom: 1rem;
+}
+
+.services-input-row label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.services-input-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.services-input-controls input[type="text"] {
+  flex: 1 1 12rem;
+  min-width: 8rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+}
+
+.field-help-out {
+  margin-top: 0.35rem;
+  padding: 0.5rem 0.65rem;
+  background: var(--color-row-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+}
+
+.help-values-list {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.help-lookup-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.help-lookup-table th,
+.help-lookup-table td {
+  border: 1px solid var(--color-border);
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+}
+
+.help-lookup-table th {
+  background: var(--color-surface-inner);
+  font-weight: 600;
+}
+
+.services-ops-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.services-ops-table th,
+.services-ops-table td {
+  border: 1px solid var(--color-border);
+  padding: 0.5rem 0.65rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.services-ops-table th {
+  background: var(--color-surface-inner);
+  font-weight: 600;
 }
 
 @media (max-width: 768px) {

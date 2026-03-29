@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+
+{% macro status_label(s) -%}
+{%- if s == 'not_started' -%}Not started
+{%- elif s == 'in_progress' -%}In progress
+{%- elif s == 'published' -%}Published
+{%- elif s == 'rolled_back' -%}Rolled back
+{%- elif s == 'applied' -%}Applied
+{%- elif s == 'reused' -%}Reused (satisfied)
+{%- else -%}{{ s }}
+{%- endif -%}
+{%- endmacro %}
+
+{% block title %}Table workspace · {{ tw.table.label }} · OpsCore{% endblock %}
+
+{% block content %}
+<style>
+  .workspace-badge { font-size: 0.75rem; font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; }
+  .workspace-status--table.workspace-status--not_started { background: #e5e7eb; color: #1f2937; }
+  .workspace-status--table.workspace-status--in_progress { background: #bfdbfe; color: #1e3a5f; }
+  .workspace-status--table.workspace-status--published { background: #86efac; color: #14532d; }
+  .workspace-status--table.workspace-status--rolled_back { background: #fecaca; color: #7f1d1d; }
+  .workspace-status--table.workspace-status--reused { background: #e9d5ff; color: #4c1d95; }
+  .workspace-status--table.workspace-status--applied { background: #d1fae5; color: #064e3b; }
+  .tw-lead { margin: 0.75rem 0; padding: 0.65rem 0.85rem; border-radius: 6px; background: #f3f4f6; border: 1px solid rgba(0,0,0,0.06); }
+  .tw-lead--preview { background: #dbeafe; border-color: #93c5fd; }
+  .tw-lead--satisfied { background: #d1fae5; border-color: #6ee7b7; }
+  .tw-flow { margin: 0; padding: 0.75rem 0.9rem; border-radius: 6px; background: #f8fafc; border: 1px solid #e2e8f0; }
+  .tw-flow--closed { background: #fef3c7; border-color: #fcd34d; }
+</style>
+
+<header class="page-header-block">
+  <h1 class="page-title">Table workspace</h1>
+  <p class="page-description">
+    <a href="{{ url_for('services.operation_config_workspace', operation_id=operation.operation_id, config_id=config_id) }}">← Config workspace ({{ tw.parent_config.label }})</a>
+  </p>
+</header>
+
+<div class="card card-scan">
+  <h2 class="page-title" style="font-size: 1.1rem;">Section A — Header</h2>
+  <dl class="operation-dl">
+    <dt>Request number</dt>
+    <dd>{{ operation.request_number or '—' }}</dd>
+    <dt>Service</dt>
+    <dd>{{ service_name }}</dd>
+    <dt>Config</dt>
+    <dd><strong>{{ tw.parent_config.label }}</strong> <code>{{ tw.parent_config.id }}</code></dd>
+    <dt>Table</dt>
+    <dd><strong>{{ tw.table.label }}</strong> <code>{{ tw.table.id }}</code> / <code>{{ tw.table.table_name }}</code></dd>
+    <dt>Status</dt>
+    <dd><span class="workspace-badge {{ tw.table.css_class }}">{{ status_label(tw.table.status) }}</span></dd>
+  </dl>
+</div>
+
+{% set twf = tw.table_workflow if tw.table_workflow is defined else none %}
+{% if twf %}
+<div class="card card-scan" style="margin-top: 1rem;">
+  <h2 class="page-title" style="font-size: 1.1rem;">Workflow — this table</h2>
+  <div class="tw-flow{% if not twf.lifecycle_active %} tw-flow--closed{% endif %}">
+    <dl class="operation-dl" style="margin: 0;">
+      <dt>Table state</dt>
+      <dd><strong>{{ twf.current_state_label }}</strong></dd>
+      <dt>Recommended next</dt>
+      <dd>{{ twf.recommended_next_label }}</dd>
+    </dl>
+    {% if twf.satisfied_complete_message %}
+    <p class="page-description" style="margin: 0.65rem 0 0;"><strong>{{ twf.satisfied_complete_message }}</strong></p>
+    {% endif %}
+    {% if twf.blocked_reasons and twf.blocked_reasons | length > 0 %}
+    <div class="alert alert-error" role="status" style="margin-top: 0.65rem;">
+      <strong>Blocked:</strong>
+      <ul style="margin: 0.35rem 0 0 1.25rem;">
+        {% for br in twf.blocked_reasons %}
+        <li>{{ br }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% if twf.emphasize_save_then_preview and (tw.lifecycle_execution_enabled | default(true)) %}
+    <p class="page-description" style="margin-top: 0.65rem;">Flow: <strong>Insert operation</strong> (Section C2) → <strong>Preview DB changes</strong> (Section DB) → apply from the preview page when ready.</p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<div class="card card-scan" style="margin-top: 1rem;">
+  <h2 class="page-title" style="font-size: 1.1rem;">Section B — Meaning &amp; state</h2>
+  <p class="page-description">{{ tw.table.note }}</p>
+  {% if tw.reuse_context.blurb %}
+  <p class="page-description" style="margin-top: 0.65rem;">{{ tw.reuse_context.blurb }}</p>
+  {% endif %}
+  <ul style="margin: 0.75rem 0 0 1.25rem;">
+    <li>Needs new input/action: <strong>{% if tw.table.is_actionable %}Yes{% else %}No{% endif %}</strong></li>
+    <li>Already satisfied: <strong>{% if tw.table.is_satisfied %}Yes{% else %}No{% endif %}</strong></li>
+    <li>Reused for this config: <strong>{% if tw.table.is_reused %}Yes{% else %}No{% endif %}</strong></li>
+  </ul>
+  {% if tw.table.is_reused %}
+  <p class="page-description" style="margin-top: 0.75rem;">No new database row is required for this config — the table is already covered by the request.</p>
+  {% endif %}
+</div>
+
+<div class="card card-scan" style="margin-top: 1rem;">
+  <h2 class="page-title" style="font-size: 1.1rem;">Section C — Fields (metadata)</h2>
+  {% if tw.fields | length > 0 %}
+  <table style="width: 100%; border-collapse: collapse; margin-top: 0.5rem;">
+    <thead>
+      <tr>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Label</th>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Key</th>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Required</th>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Type / notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in tw.fields %}
+      <tr>
+        <td style="padding: 0.4rem 0.5rem; vertical-align: top;">{{ f.label }}</td>
+        <td style="padding: 0.4rem 0.5rem; vertical-align: top;"><code>{{ f.key }}</code></td>
+        <td style="padding: 0.4rem 0.5rem; vertical-align: top;">{% if f.required %}yes{% else %}no{% endif %}</td>
+        <td style="padding: 0.4rem 0.5rem; vertical-align: top;">
+          {% if f.type %}<code>{{ f.type }}</code>{% endif %}
+          {% if f.column %}<span class="page-description"> column {{ f.column }}</span>{% endif %}
+          {% if f.help_note %}<br><span class="page-description">{{ f.help_note }}</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% elif tw.field_hints %}
+  <p class="page-description">{{ tw.field_hints }}</p>
+  {% else %}
+  <p class="page-description">No guided field list matched this table in the service definition.</p>
+  {% endif %}
+</div>
+
+{% set ts = tw.table_sequence if tw.table_sequence is defined else none %}
+{% if ts and ts.ordered_tables | length > 0 %}
+<div class="card card-scan" style="margin-top: 1rem;">
+  <h2 class="page-title" style="font-size: 1.1rem;">Section C1 — Reference sample rows (mock DB)</h2>
+  <p class="page-description" style="margin-bottom: 0.65rem;">Illustrative rows only — not your request data. Same shape as the target table for quick orientation.</p>
+  {% if tw.table.id == 'license_servers' %}
+  <table class="tw-sample-table" style="width: 100%; border-collapse: collapse; margin-top: 0.35rem; font-size: 0.88rem;">
+    <thead>
+      <tr>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">ID</th>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Application</th>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Site</th>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Company</th>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Port</th>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Lic servers</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">101</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">hyperworks_v11</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">ESCAP</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">Acme</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">6200</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">lic01.acme.example</td></tr>
+      <tr><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">102</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">starccm</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">EMEA</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">BetaCo</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">27000</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">lic02.betaco.example</td></tr>
+      <tr><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">103</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">abaqus</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">NAM</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">Gamma</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">1055</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">lic03.gamma.example</td></tr>
+      <tr><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">104</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">fluent</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">APAC</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">Delta</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">10554</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">lic04.delta.example</td></tr>
+      <tr><td style="padding: 0.35rem 0.5rem;">105</td><td style="padding: 0.35rem 0.5rem;">cadence</td><td style="padding: 0.35rem 0.5rem;">EUW</td><td style="padding: 0.35rem 0.5rem;">Epsilon</td><td style="padding: 0.35rem 0.5rem;">5280</td><td style="padding: 0.35rem 0.5rem;">lic05.eps.example</td></tr>
+    </tbody>
+  </table>
+  {% elif tw.table.id == 'resources_REF' %}
+  <table class="tw-sample-table" style="width: 100%; border-collapse: collapse; margin-top: 0.35rem; font-size: 0.88rem;">
+    <thead>
+      <tr>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">ID</th>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Resource</th>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Description</th>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Group ID</th>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Active</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">201</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">res-hw-v11</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">HyperWorks pool</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">12</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">1</td></tr>
+      <tr><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">202</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">res-sccm</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">STAR-CCM+</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">12</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">1</td></tr>
+      <tr><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">203</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">res-abaqus</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">Abaqus tokens</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">15</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">1</td></tr>
+      <tr><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">204</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">res-fluent</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">Fluent</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">15</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">1</td></tr>
+      <tr><td style="padding: 0.35rem 0.5rem;">205</td><td style="padding: 0.35rem 0.5rem;">res-cadence</td><td style="padding: 0.35rem 0.5rem;">Cadence suite</td><td style="padding: 0.35rem 0.5rem;">18</td><td style="padding: 0.35rem 0.5rem;">1</td></tr>
+    </tbody>
+  </table>
+  {% else %}
+  <table class="tw-sample-table" style="width: 100%; border-collapse: collapse; margin-top: 0.35rem; font-size: 0.88rem;">
+    <thead>
+      <tr>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">#</th>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Col A</th>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Col B</th>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Col C</th>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Col D</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">1</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">alpha</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">east</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">100</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">ok</td></tr>
+      <tr><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">2</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">bravo</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">west</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">200</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">ok</td></tr>
+      <tr><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">3</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">charlie</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">north</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">300</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">ok</td></tr>
+      <tr><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">4</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">delta</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">south</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">400</td><td style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee;">ok</td></tr>
+      <tr><td style="padding: 0.35rem 0.5rem;">5</td><td style="padding: 0.35rem 0.5rem;">echo</td><td style="padding: 0.35rem 0.5rem;">central</td><td style="padding: 0.35rem 0.5rem;">500</td><td style="padding: 0.35rem 0.5rem;">ok</td></tr>
+    </tbody>
+  </table>
+  {% endif %}
+  {% if ts.ordered_tables | length > 1 %}
+  <h3 class="page-title" style="font-size: 0.95rem; margin-top: 1rem;">Insert order for this config</h3>
+  <p class="page-description">Work <strong>one table at a time</strong>: save fields for the current table, preview and apply its insert, then open the next dependency from the config workspace.</p>
+  <ol style="margin: 0.5rem 0 0 1.25rem;">
+    {% for t in ts.ordered_tables %}
+    <li>{% if t.id == ts.current_table_id %}<strong>{{ t.label }}</strong> <span class="page-description">(you are here)</span>{% else %}{{ t.label }} <code class="page-description">{{ t.id }}</code>{% endif %}</li>
+    {% endfor %}
+  </ol>
+  {% if ts.next_table %}
+  <p class="page-description" style="margin-top: 0.65rem;">After this table is applied: continue with <strong>{{ ts.next_table.label }}</strong> (<code>{{ ts.next_table.id }}</code>) via <strong>Back to config workspace</strong> → Open table.</p>
+  {% else %}
+  <p class="page-description" style="margin-top: 0.65rem;">This is the last manual table in the list for this config — then return to the config workspace for generation and downstream steps.</p>
+  {% endif %}
+  {% endif %}
+</div>
+{% endif %}
+
+{% if tw.show_table_input_form %}
+<div class="card card-scan" style="margin-top: 1rem;">
+  <h2 class="page-title" style="font-size: 1.1rem;">Section C2 — Finalize row (this table)</h2>
+  <p class="page-description" style="margin-bottom: 0.5rem;">
+    Values below are merged into this request’s <code>service_inputs</code> (same as the former full-page form). Help shows sample values from the mock JSON database; you may still type any value you need. You are responsible for correctness.
+  </p>
+  <p class="page-description" style="margin-bottom: 0.75rem;">Use <strong>Help</strong> on a field to load suggestions (unique values, lookups, etc.). When satisfied, click <strong>Insert operation</strong> to persist — nothing is written until then.</p>
+  {% set si = operation.service_inputs if operation.service_inputs is mapping else {} %}
+  {% set dv = tw.default_values if tw.default_values is mapping else {} %}
+  <form method="post" class="services-inputs-form" action="{{ url_for('services.operation_inputs', operation_id=operation.operation_id) }}">
+    <input type="hidden" name="return_config_id" value="{{ config_id }}">
+    <input type="hidden" name="return_table_id" value="{{ tw.table.id }}">
+    {% for f in tw.fields %}
+    <div class="services-input-row" style="margin-bottom: 0.85rem;">
+      <label for="tw_field_{{ f.key }}">{{ f.label }} <code class="page-description">{{ f.key }}</code>{% if f.required %} <span class="page-description">(required)</span>{% endif %}</label>
+      <div class="services-input-controls" style="display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; max-width: 42rem;">
+        <input type="text" name="{{ f.key }}" id="tw_field_{{ f.key }}" autocomplete="off"
+          style="flex: 1; min-width: 12rem; padding: 0.35rem 0.5rem;"
+          value="{% if f.key in si %}{{ si[f.key] }}{% elif f.key in dv %}{{ dv[f.key] }}{% endif %}"
+          {% if f.placeholder %}placeholder="{{ f.placeholder }}"{% endif %}>
+        {% if f.help_mode %}
+        <button type="button" class="btn services-help-btn" data-help-target="help-tw-{{ f.key }}"
+          data-help-url="{{ url_for('services.operation_field_help', operation_id=operation.operation_id, field_key=f.key) }}">Help</button>
+        {% endif %}
+      </div>
+      {% if f.help_note %}<p class="page-description" style="margin: 0.25rem 0 0;">{{ f.help_note }}</p>{% endif %}
+      <div class="field-help-out" id="help-tw-{{ f.key }}" aria-live="polite"></div>
+    </div>
+    {% endfor %}
+    <p style="margin-top: 1rem;">
+      <button type="submit" class="btn btn-primary">Insert operation</button>
+    </p>
+  </form>
+  <p class="page-description" style="margin-top: 0.75rem;">Next: use <strong>Section DB</strong> for table-scoped DB preview and apply. {% if ts and ts.next_table %}When this table is done, continue with <strong>{{ ts.next_table.label }}</strong> from the config workspace.{% endif %}</p>
+</div>
+{% endif %}
+
+<div class="card card-scan" style="margin-top: 1rem;">
+  <h2 class="page-title" style="font-size: 1.1rem;">Section D — Apply snapshot</h2>
+  {% if tw.apply_snapshot %}
+  <p class="page-description">Recorded in this operation’s DB apply steps for this request:</p>
+  <ul style="margin: 0.35rem 0 0 1.25rem;">
+    <li>Step: <code>{{ tw.apply_snapshot.step }}</code> — {{ tw.apply_snapshot.status }}</li>
+    {% if 'inserted_id' in tw.apply_snapshot and tw.apply_snapshot.inserted_id is not none %}
+    <li>Inserted id: <strong>{{ tw.apply_snapshot.inserted_id }}</strong></li>
+    {% endif %}
+  </ul>
+  {% elif tw.table.is_satisfied and tw.show_elim_actions %}
+  <p class="page-description">Satisfied in request state; no matching apply step snippet was found for this table id.</p>
+  {% else %}
+  <p class="page-description">Not applied yet for this table (or not an ELIM operation).</p>
+  {% endif %}
+</div>
+
+{% if tw.elim_table_apply.show %}
+<div class="card card-scan" style="margin-top: 1rem;">
+  <h2 class="page-title" style="font-size: 1.1rem;">Section DB — Database (this table, ELIM)</h2>
+  {% if tw.elim_table_apply.validation_errors | length > 0 %}
+  <div class="alert alert-error" role="status">
+    <strong>Fix inputs before a table-scoped apply:</strong>
+    <ul style="margin: 0.5rem 0 0 1.25rem;">
+      {% for err in tw.elim_table_apply.validation_errors %}
+      <li>{{ err }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+  {% if tw.elim_table_apply.dependency_message %}
+  <p class="page-description" style="margin-top: 0.5rem;"><strong>{{ tw.elim_table_apply.dependency_message }}</strong></p>
+  {% endif %}
+  {% if tw.table.is_reused %}
+  <p class="page-description" style="margin-top: 0.65rem;"><strong>Reused from a previous step</strong> in this request — the row already exists; no table-scoped apply is needed here.</p>
+  {% endif %}
+  {% if tw.elim_table_apply.this_table_applied %}
+  <p style="margin-top: 0.65rem;"><strong>Already applied</strong> for this table in the current operation state.{% if tw.apply_snapshot and 'inserted_id' in tw.apply_snapshot and tw.apply_snapshot.inserted_id is not none %} Inserted id: <strong>{{ tw.apply_snapshot.inserted_id }}</strong>.{% endif %}</p>
+  <p class="page-description">Use the full <strong>Preview DB changes</strong> link below if you need to review the other insert.</p>
+  {% elif tw.elim_table_apply.can_table_preview %}
+  <p style="margin-top: 0.75rem;">
+    <a href="{{ url_for('services.operation_table_db_preview', operation_id=operation.operation_id, config_id=config_id, table_id=tw.table.id) }}" class="btn btn-primary">Preview DB changes for this table</a>
+  </p>
+  <p class="page-description" style="margin-top: 0.5rem;">After preview, use <strong>Apply changes for this table</strong> on the preview page (no auto-apply).</p>
+  {% elif tw.table.is_actionable and not tw.elim_table_apply.can_table_preview and not tw.elim_table_apply.dependency_message %}
+  <p class="page-description" style="margin-top: 0.65rem;">Use <strong>Insert operation</strong> in Section C2 (or fix validation errors / prerequisite tables above) — then table-scoped preview will be available.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="card card-scan" style="margin-top: 1rem;">
+  <h2 class="page-title" style="font-size: 1.1rem;">Section E — Next actions</h2>
+  <p class="tw-lead{% if tw.next.emphasize_preview %} tw-lead--preview{% elif tw.next.show_satisfied_banner %} tw-lead--satisfied{% endif %}"><strong>Recommended:</strong> {{ tw.next.lead }}</p>
+  <p style="margin: 0.75rem 0 0; display: flex; flex-wrap: wrap; gap: 0.35rem;">
+    {% if tw.show_elim_actions and tw.links.can_preview_db %}
+    <a href="{{ url_for('services.operation_db_preview', operation_id=operation.operation_id) }}" class="btn {% if tw.next.emphasize_preview %}btn-primary{% endif %}">Preview DB changes</a>
+    {% endif %}
+    <a href="{{ url_for('services.operation_config_workspace', operation_id=operation.operation_id, config_id=config_id) }}" class="btn">Back to config workspace</a>
+    <a href="{{ url_for('services.operation_workspace', operation_id=operation.operation_id) }}" class="btn">Full workspace</a>
+  </p>
+  {% if tw.next.show_satisfied_banner %}
+  <p class="page-description" style="margin-top: 0.75rem;"><strong>No new entry needed</strong> for this table in the current request state.</p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if tw.show_table_input_form %}
+<script src="{{ url_for('static', filename='services_inputs.js') }}" defer></script>
+{% endif %}
+{% endblock %}

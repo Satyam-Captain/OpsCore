@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Operations · Services · OpsCore{% endblock %}
+
+{% block content %}
+<header class="page-header-block">
+  <h1 class="page-title">Service operations</h1>
+  <p class="page-description">
+    All tracked operations (newest activity first). Filter by request number and/or service id, or open any row.
+  </p>
+</header>
+
+<form method="get" class="card card-scan" style="margin-bottom: 1.25rem;" action="{{ url_for('services.operations_list') }}">
+  <h2 class="page-title" style="font-size: 1rem;">Filter</h2>
+  <label for="f_request_number">Request number</label>
+  <input type="text" name="request_number" id="f_request_number" value="{{ filter_request_number }}" placeholder="e.g. DEMO">
+
+  <label for="f_service_id">Service id</label>
+  <input type="text" name="service_id" id="f_service_id" value="{{ filter_service_id }}" placeholder="e.g. add_license_resource_elim">
+
+  <p style="margin-top: 0.75rem;">
+    <button type="submit" class="btn btn-primary">Apply filter</button>
+    <a href="{{ url_for('services.operations_list') }}" class="btn" style="margin-left: 0.5rem;">Clear</a>
+  </p>
+</form>
+
+{% if not operations %}
+  <p class="page-description">No operations match the current filter (or none exist yet).</p>
+{% else %}
+  <div class="card card-scan" style="overflow-x: auto;">
+    <table class="services-ops-table">
+      <thead>
+        <tr>
+          <th>Operation ID</th>
+          <th>Service</th>
+          <th>Request</th>
+          <th>Status</th>
+          <th>Updated</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in operations %}
+        <tr>
+          <td><code>{{ row.operation_id[:8] }}…</code></td>
+          <td>
+            <strong>{{ row.service_name }}</strong>
+            <br><code class="page-description" style="font-size: 0.8rem;">{{ row.service_id }}</code>
+          </td>
+          <td>{{ row.request_number }}</td>
+          <td>{{ row.status }}</td>
+          <td class="page-description" style="white-space: nowrap;">{{ row.updated_at }}</td>
+          <td>
+            <a class="btn btn-primary" href="{{ url_for('services.operation_view', operation_id=row.operation_id) }}">Open</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endif %}
+
+<p style="margin-top: 1.25rem;">
+  <a href="{{ url_for('services.index') }}" class="btn">Back to services</a>
+</p>
+{% endblock %}
