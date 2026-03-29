@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}{{ service.name }} · Start · OpsCore{% endblock %}
+
+{% block content %}
+<header class="page-header-block">
+  <h1 class="page-title">{{ service.name }}</h1>
+  <p class="page-description">{{ service.description }}</p>
+  <p class="page-description" style="margin-top: 0.5rem;">
+    Session role: <strong>{{ current_role }}</strong>
+    — <a href="{{ url_for('services.access') }}">Change role</a>
+    {% if is_superadmin_session %}
+    · <a href="{{ url_for('services.admin_dashboard') }}">Admin dashboard</a>
+    {% endif %}
+  </p>
+</header>
+
+{% if start_blocked and not is_superadmin_session %}
+<div class="alert alert-error" role="status">
+  <strong>Your Create new operation request was blocked.</strong>
+  No new operation was created — see the error messages at the top of the page.
+  Active workflows are listed below; use <a href="{{ url_for('services.access') }}">Service access</a> only if you are authorized to sign in as superadmin.
+</div>
+{% endif %}
+
+{% if active_workspaces | length > 0 %}
+<div class="alert alert-info" role="status">
+  <strong>Active workspace(s)</strong> system-wide (not finalized / rolled back):
+  <ul style="margin: 0.5rem 0 0 1.25rem;">
+    {% for row in active_workspaces %}
+    <li>
+      <code>{{ row.operation_id[:8] }}…</code> — {{ row.service_name }} / request <strong>{{ row.request_number }}</strong> — {{ row.status }}
+      <a class="btn" style="font-size: 0.8rem; margin-left: 0.35rem;" href="{{ url_for('services.operation_workspace', operation_id=row.operation_id) }}">Workspace</a>
+      <a class="btn" style="font-size: 0.8rem;" href="{{ url_for('services.operation_view', operation_id=row.operation_id) }}">Operation</a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% if not is_superadmin_session %}
+  <p style="margin: 0.75rem 0 0;">Only <strong>superadmin</strong> may start a new workspace while any operation is still active (global lock).</p>
+  {% else %}
+  <p style="margin: 0.75rem 0 0;">You are superadmin: submitting <strong>Create new operation</strong> will bypass the global lock and record a <strong>superadmin override</strong>.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+<section class="card card-scan" style="margin-bottom: 1.25rem;">
+  <h2 class="page-title" style="font-size: 1.05rem;">Open existing operation</h2>
+  <p class="page-description">
+    Search for operations already created for this service and a request number. This does <strong>not</strong> create anything new.
+  </p>
+  <form method="get" action="{{ url_for('services.start', service_id=service.id) }}">
+    <label for="find_request_number">Request number</label>
+    <div class="services-input-controls" style="margin-bottom: 0.75rem;">
+      <input type="text" name="request_number" id="find_request_number" value="{{ search_request_number }}" placeholder="e.g. 12345" autocomplete="off">
+      <button type="submit" class="btn">Find existing</button>
+    </div>
+  </form>
+
+  {% if search_request_number %}
+    {% if existing_operations %}
+      <p class="page-description" style="margin-top: 1rem;">
+        All matching operations (including completed). Active ones are highlighted above.
+      </p>
+      <table class="services-ops-table">
+        <thead>
+          <tr>
+            <th>Operation ID</th>
+            <th>Status</th>
+            <th>Updated</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in existing_operations %}
+          <tr>
+            <td><code>{{ row.operation_id[:8] }}…</code></td>
+            <td>{{ row.status }}</td>
+            <td class="page-description" style="white-space: nowrap;">{{ row.updated_at }}</td>
+            <td>
+              <a class="btn btn-primary" href="{{ url_for('services.operation_view', operation_id=row.operation_id) }}">Open</a>
+              <a class="btn" href="{{ url_for('services.operation_workspace', operation_id=row.operation_id) }}">Workspace</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="page-description" style="margin-top: 1rem;">No existing operations for request <strong>{{ search_request_number }}</strong> and this service. You can start a new operation below.</p>
+    {% endif %}
+  {% endif %}
+</section>
+
+<section class="card card-scan">
+  <h2 class="page-title" style="font-size: 1.05rem;">Start new operation</h2>
+  <p class="page-description">
+    Creates a <strong>new</strong> operation record every time you submit. Use “Open existing operation” above if you meant to continue work on an old record.
+  </p>
+
+  <form method="post" action="{{ url_for('services.start', service_id=service.id) }}">
+    <label for="request_number">Request number</label>
+    <input type="text" name="request_number" id="request_number" required placeholder="e.g. 12345" value="{{ search_request_number if start_blocked else '' }}">
+
+    <div class="page-description" style="margin-bottom: 1rem;">
+      The request workspace folder is validated on create (sandbox:
+      <code>data/sandbox/requests/LSF10CFG/REQ-&lt;number&gt;</code>).
+      Deployment cluster is chosen later or manually—not on this page.
+      You can still use bypass flags in <code>config/settings.json</code> for local dev.
+    </div>
+
+    {% if active_workspaces | length > 0 and not is_superadmin_session %}
+    <p class="alert alert-warning" role="status" style="margin-bottom: 1rem;">
+      <strong>Not possible right now:</strong> another request workflow is already in progress.
+      If you choose <strong>Create new operation</strong> anyway, nothing new will be created — you will see a clear message at the top of the page after submit.
+    </p>
+    {% endif %}
+
+    <button type="submit" class="btn btn-primary">Create new operation</button>
+    <a href="{{ url_for('services.index') }}" class="btn" style="margin-left: 0.5rem;">Back</a>
+    {% if start_blocked and not is_superadmin_session %}
+    <p class="page-description" style="margin-top: 0.75rem; color: var(--color-danger, #b91c1c);">
+      <strong>Blocked by active request workflow.</strong> Finish, finalize, or roll back the open workflow(s) before trying again.
+    </p>
+    {% endif %}
+  </form>
+</section>
+{% endblock %}

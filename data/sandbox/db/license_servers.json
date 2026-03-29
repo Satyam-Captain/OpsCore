@@ -1,0 +1,62 @@
+[
+  {
+    "ID": 345,
+    "application": "hyperworks_v11",
+    "site": "ESCAP",
+    "licCollector_ID": 70,
+    "company": "Capgemini",
+    "licType": "lmx",
+    "port": 6200,
+    "ready4MIP": 0,
+    "licservers": "LIC-SP-001.corp.capgemini.com:LIC-SP-002.corp.capgemini.com",
+    "features": "GlobalZoneEU"
+  },
+  {
+    "ID": 346,
+    "application": "samtechV19",
+    "site": "EMEA",
+    "licCollector_ID": 71,
+    "company": "AcmeLabs",
+    "licType": "flexlm",
+    "port": 27000,
+    "ready4MIP": 1,
+    "licservers": "lic01.acme.example.com",
+    "features": "StandardBundle"
+  },
+  {
+    "application": "hyperworks_v11",
+    "site": "DEVSP",
+    "licCollector_ID": 70,
+    "company": "Capgemini",
+    "licType": "lmx",
+    "port": 6200,
+    "ready4MIP": 0,
+    "licservers": "LIC-SP-001.corp.capgemini.com:LIC-SP-002.corp.capgemini.com",
+    "features": "PagalZoneEU",
+    "ID": 347
+  },
+  {
+    "application": "hyperworks_v11",
+    "site": "ESCAP",
+    "licCollector_ID": 70,
+    "company": "Capgemini",
+    "licType": "lmx",
+    "port": 6200,
+    "ready4MIP": 0,
+    "licservers": "LIC-SP-001.corp.capgemini.com:LIC-SP-002.corp.capgemini.com",
+    "features": "GlobalZoneEU",
+    "ID": 348
+  },
+  {
+    "ID": 349,
+    "application": "ls_scheduler_demo",
+    "site": "ESCAP",
+    "licCollector_ID": 70,
+    "company": "Capgemini",
+    "licType": "lmx",
+    "port": 6201,
+    "ready4MIP": 0,
+    "licservers": "LIC-LS-DEMO.corp.capgemini.com",
+    "features": "LSDemoPool"
+  }
+]

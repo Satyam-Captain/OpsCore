@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Admin dashboard · OpsCore{% endblock %}
+
+{% block content %}
+<header class="page-header-block">
+  <h1 class="page-title">Operations dashboard</h1>
+  <p class="page-description">Prototype superadmin view of all persisted operations.</p>
+</header>
+
+<div class="card card-scan" style="margin-bottom: 1rem;">
+  <p style="margin: 0;">
+    <a href="{{ url_for('services.access') }}" class="btn">Service access</a>
+    <a href="{{ url_for('services.index') }}" class="btn" style="margin-left: 0.35rem;">Services</a>
+  </p>
+</div>
+
+{% if operations | length == 0 %}
+<p class="page-description">No operations on disk.</p>
+{% else %}
+<table class="services-ops-table">
+  <thead>
+    <tr>
+      <th>Operation</th>
+      <th>Service</th>
+      <th>Request</th>
+      <th>Status</th>
+      <th>Lifecycle</th>
+      <th>Updated</th>
+      <th>Role at creation</th>
+      <th>Override</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in operations %}
+    <tr>
+      <td><code>{{ row.operation_id[:8] }}…</code></td>
+      <td><span title="{{ row.service_id }}">{{ row.service_name }}</span></td>
+      <td>{{ row.request_number }}</td>
+      <td>{{ row.status }}</td>
+      <td>{{ row.lifecycle_status }}</td>
+      <td class="page-description" style="white-space: nowrap;">{{ row.updated_at }}</td>
+      <td>{{ row.role_at_creation }}</td>
+      <td>{% if row.is_superadmin_override %}yes{% else %}no{% endif %}</td>
+      <td>
+        <a class="btn" href="{{ url_for('services.operation_view', operation_id=row.operation_id) }}">Operation</a>
+        <a class="btn" href="{{ url_for('services.operation_workspace', operation_id=row.operation_id) }}">Workspace</a>
+        {% if row.lifecycle_status in ['completed', 'rolled_back'] %}
+        <form method="post" action="{{ url_for('services.operation_delete', operation_id=row.operation_id) }}" style="display: inline; margin-left: 0.25rem;">
+          <button type="submit" class="btn" title="Remove operation JSON only" style="font-size: 0.8rem;">Delete closed record</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

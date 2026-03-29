@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Request readiness · OpsCore{% endblock %}
+
+{% block content %}
+<header class="page-header-block">
+  <h1 class="page-title">ELIM request readiness</h1>
+  <p class="page-description">
+    Operation <code>{{ operation.operation_id[:8] }}…</code> — mock / laptop checks before creating <code>.finalized</code>.
+  </p>
+</header>
+
+<div class="card card-scan" style="margin-bottom: 1rem;">
+  <dl class="operation-dl">
+    <dt>Request number</dt>
+    <dd>{% if readiness.request_number %}<strong>{{ readiness.request_number }}</strong>{% else %}<span class="page-description">—</span>{% endif %}</dd>
+    <dt>Request directory</dt>
+    <dd>{% if readiness.request_dir %}<code>{{ readiness.request_dir }}</code>{% else %}<span class="page-description">—</span>{% endif %}</dd>
+    <dt>.finalized path</dt>
+    <dd>
+      {% if readiness.finalized_marker_path %}
+      <code>{{ readiness.finalized_marker_path }}</code>
+      {% if readiness.finalized_marker_exists %}
+      <span class="page-description">(exists)</span>
+      {% else %}
+      <span class="page-description">(not present)</span>
+      {% endif %}
+      {% else %}
+      <span class="page-description">—</span>
+      {% endif %}
+    </dd>
+  </dl>
+</div>
+
+<div class="card card-scan" style="margin-bottom: 1rem;">
+  <h2 class="page-title" style="font-size: 1.1rem;">Overall</h2>
+  {% if readiness.ready %}
+  <p><strong>Ready to finalize</strong> — all required checks passed.</p>
+  {% else %}
+  <p><strong>Not ready to finalize.</strong></p>
+  {% endif %}
+  {% if readiness.missing_items | length > 0 %}
+  <p class="page-description" style="margin-top: 0.5rem;">Blocking reasons:</p>
+  <ul style="margin: 0.25rem 0 0 1.25rem;">
+    {% for item in readiness.missing_items %}
+    <li>{{ item }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+
+<div class="card card-scan" style="margin-bottom: 1rem;">
+  <h2 class="page-title" style="font-size: 1.1rem;">Checks</h2>
+  <table class="operation-dl" style="width: 100%; border-collapse: collapse;">
+    <thead>
+      <tr>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Check</th>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Result</th>
+        <th style="text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border, #ccc);">Detail</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in readiness.check_rows %}
+      <tr>
+        <td style="padding: 0.35rem 0.5rem; vertical-align: top;">{{ row.label }}{% if row.informational %} <span class="page-description">(informational)</span>{% endif %}</td>
+        <td style="padding: 0.35rem 0.5rem; vertical-align: top;">
+          {% if row.informational %}
+            {% if row.marker_exists %}<strong>Present</strong>{% else %}<span class="page-description">Absent</span>{% endif %}
+          {% elif row.ok %}
+            <strong>Pass</strong>
+          {% else %}
+            <strong>Fail</strong>
+          {% endif %}
+        </td>
+        <td style="padding: 0.35rem 0.5rem; vertical-align: top;">
+          {% if row.detail %}<code style="word-break: break-all;">{{ row.detail }}</code>{% endif %}
+          {% if row.message %}<br><span class="page-description">{{ row.message }}</span>{% endif %}
+          {% if row.error %}<br><span class="page-description">{{ row.error }}</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card card-scan">
+  {% if readiness.can_create_marker and (lifecycle_execution_enabled | default(true)) %}
+  <form method="post" action="{{ url_for('services.operation_finalize_request', operation_id=operation.operation_id) }}">
+    <button type="submit" class="btn btn-primary">Create .finalized marker</button>
+  </form>
+  {% elif readiness.can_create_marker and not (lifecycle_execution_enabled | default(true)) %}
+  <p class="page-description alert-warning">Request is closed — finalization actions are disabled.</p>
+  {% elif readiness.ready and readiness.finalized_marker_exists %}
+  <p class="page-description"><code>.finalized</code> is already present. Finalization is complete; no action required here.</p>
+  {% else %}
+  <p class="page-description">The <strong>Create .finalized marker</strong> action is available only when all checks pass and the marker file does not exist yet.</p>
+  {% endif %}
+  <p style="margin-top: 1rem;">
+    <a href="{{ url_for('services.operation_view', operation_id=operation.operation_id) }}" class="btn">Back to operation</a>
+  </p>
+</div>
+{% endblock %}

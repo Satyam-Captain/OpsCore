@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Rollback preview · OpsCore{% endblock %}
+
+{% block content %}
+<header class="page-header-block">
+  <h1 class="page-title">Rollback preview</h1>
+  <p class="page-description">
+    Operation <code>{{ operation.operation_id[:8] }}…</code>. Rows below will be removed from the mock JSON database in stack order.
+  </p>
+</header>
+
+<div class="alert alert-error" role="alert">
+  <strong>Warning:</strong> The next step will delete previously applied data in reverse order. This page is preview only — execution happens only after you confirm on the following screen.
+</div>
+
+{% if not preview_items %}
+  <p class="page-description">No valid rollback steps to display.</p>
+  <p><a href="{{ url_for('services.operation_view', operation_id=operation.operation_id) }}" class="btn">Back</a></p>
+{% else %}
+  {% for item in preview_items %}
+  <div class="card card-scan" style="margin-bottom: 1rem;">
+    <h2 class="page-title" style="font-size: 1.05rem;">{{ item.table }} — ID {{ item.id }}</h2>
+    {% if item.note %}
+      <p class="page-description">{{ item.note }}</p>
+    {% endif %}
+    {% if item.row %}
+      <pre class="operation-pre">{{ item.row | tojson(indent=2) }}</pre>
+    {% elif not item.note %}
+      <p class="page-description">Already deleted or missing.</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <p style="margin-top: 0.75rem;">
+    <a href="{{ rollback_confirm_url }}" class="btn btn-primary">Continue to confirm rollback</a>
+    <a href="{{ url_for('services.operation_view', operation_id=operation.operation_id) }}" class="btn" style="margin-left: 0.5rem;">Cancel</a>
+  </p>
+{% endif %}
+{% endblock %}

@@ -12,6 +12,7 @@
   {% set nav_compare = ep in ('compare_landing', 'file_detail', 'diff_view') %}
   {% set nav_truth = (ep == 'source_of_truth') %}
   {% set nav_gold = ep in ('gold_registry', 'gold_form') %}
+  {% set nav_services = 'services.' in (ep or '') %}
 
   <div class="app-shell">
     <div class="app-shell-accent" aria-hidden="true"></div>
@@ -54,6 +55,15 @@
               {% if nav_gold %}aria-current="page"{% endif %}
             >Gold Registry</a>
           </li>
+          {% if nav_service_enabled %}
+          <li class="app-nav-li">
+            <a
+              href="{{ url_for('services.index') }}"
+              class="app-nav-item{% if nav_services %} app-nav-item--active{% endif %}"
+              {% if nav_services %}aria-current="page"{% endif %}
+            >Services</a>
+          </li>
+          {% endif %}
           <li class="app-nav-li">
             <span class="app-nav-item app-nav-item--disabled" title="Coming soon">Deploy</span>
           </li>
@@ -82,5 +92,6 @@
       {% block content %}{% endblock %}
     </div>
   </main>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

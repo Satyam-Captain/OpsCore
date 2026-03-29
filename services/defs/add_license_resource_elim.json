@@ -1,0 +1,416 @@
+{
+  "id": "add_license_resource_elim",
+  "name": "Add license resource (ELIM)",
+  "description": "Request-scoped workflow for adding a license resource (ELIM path). You start with an ITSM request number only; deployment target cluster is selected later or outside this flow (same request can target multiple clusters over time).",
+  "inputs": [
+    { "id": "request_number", "label": "Request number", "type": "text" }
+  ],
+  "steps": [
+    "request_check",
+    "collect_inputs",
+    "preview_db",
+    "generate_config",
+    "publish_request",
+    "manual_followup"
+  ],
+  "request_blueprint": {
+    "mode": "exclusive",
+    "label": "ELIM license resource request",
+    "description": "Single-request workspace: guided DB rows (license_servers, resources_REF) then ordered LSF config artifacts. Completion when required configs are published (see completion_strategy).",
+    "completion_strategy": "all_required_configs_published"
+  },
+  "config_files": [
+    {
+      "id": "lsb.resources",
+      "label": "LSB resources",
+      "short_label": "lsb.resources",
+      "order": 1,
+      "depends_on_tables": ["license_servers", "resources_REF"],
+      "generation_supported": true,
+      "diff_supported": true,
+      "publish_supported": true,
+      "required_for_finalization": true
+    },
+    {
+      "id": "lsf.shared",
+      "label": "LSF shared",
+      "short_label": "lsf.shared",
+      "order": 2,
+      "depends_on_tables": ["license_servers", "resources_REF"],
+      "generation_supported": true,
+      "diff_supported": true,
+      "publish_supported": true,
+      "required_for_finalization": true
+    },
+    {
+      "id": "lsf.cluster",
+      "label": "LSF cluster",
+      "short_label": "lsf.cluster",
+      "order": 3,
+      "depends_on_tables": [],
+      "derived_only": true,
+      "generation_supported": true,
+      "diff_supported": true,
+      "publish_supported": true,
+      "required_for_finalization": true
+    }
+  ],
+  "tables": {
+    "license_servers": {
+      "id": "license_servers",
+      "label": "License servers",
+      "table_name": "license_servers",
+      "reuse_within_request": true,
+      "prefill_mode": "sample_row",
+      "defaults": {
+        "ready4MIP": 0
+      },
+      "guided_group": "license_server",
+      "field_hints": "Uses guided_inputs with group license_server"
+    },
+    "resources_REF": {
+      "id": "resources_REF",
+      "label": "Resources REF",
+      "table_name": "resources_REF",
+      "reuse_within_request": true,
+      "prefill_mode": "sample_row",
+      "defaults": {
+        "active": 1,
+        "useReason": 1,
+        "res_type": "Numeric"
+      },
+      "guided_group": "resource_ref",
+      "field_hints": "Uses guided_inputs with group resource_ref"
+    }
+  },
+  "guided_inputs": [
+    {
+      "key": "application",
+      "label": "Application",
+      "group": "license_server",
+      "table": "license_servers",
+      "column": "application",
+      "type": "text",
+      "required": false,
+      "placeholder": "e.g. hyperworks_v11",
+      "help_mode": "unique_values",
+      "help_table": "license_servers",
+      "help_column": "application"
+    },
+    {
+      "key": "site",
+      "label": "Site",
+      "group": "license_server",
+      "table": "license_servers",
+      "column": "site",
+      "type": "text",
+      "required": false,
+      "placeholder": "e.g. ESCAP",
+      "help_mode": "unique_values",
+      "help_table": "license_servers",
+      "help_column": "site"
+    },
+    {
+      "key": "licCollector_ID",
+      "label": "License collector ID",
+      "group": "license_server",
+      "table": "license_servers",
+      "column": "licCollector_ID",
+      "type": "text",
+      "required": false,
+      "placeholder": "Cluster collector ID",
+      "help_mode": "lookup_rows",
+      "help_table": "clusters",
+      "help_columns": ["ID", "cluster"]
+    },
+    {
+      "key": "company",
+      "label": "Company",
+      "group": "license_server",
+      "table": "license_servers",
+      "column": "company",
+      "type": "text",
+      "required": false,
+      "help_mode": "unique_values",
+      "help_table": "license_servers",
+      "help_column": "company"
+    },
+    {
+      "key": "licType",
+      "label": "License type",
+      "group": "license_server",
+      "table": "license_servers",
+      "column": "licType",
+      "type": "text",
+      "required": false,
+      "help_mode": "unique_values",
+      "help_table": "license_servers",
+      "help_column": "licType"
+    },
+    {
+      "key": "port",
+      "label": "Port",
+      "group": "license_server",
+      "table": "license_servers",
+      "column": "port",
+      "type": "text",
+      "required": false,
+      "help_mode": "unique_values",
+      "help_table": "license_servers",
+      "help_column": "port"
+    },
+    {
+      "key": "ready4MIP",
+      "label": "Ready for MIP",
+      "group": "license_server",
+      "table": "license_servers",
+      "column": "ready4MIP",
+      "type": "text",
+      "required": false,
+      "help_mode": "unique_values",
+      "help_table": "license_servers",
+      "help_column": "ready4MIP"
+    },
+    {
+      "key": "licservers",
+      "label": "License servers",
+      "group": "license_server",
+      "table": "license_servers",
+      "column": "licservers",
+      "type": "text",
+      "required": false,
+      "help_mode": "unique_values",
+      "help_table": "license_servers",
+      "help_column": "licservers"
+    },
+    {
+      "key": "features",
+      "label": "Features",
+      "group": "license_server",
+      "table": "license_servers",
+      "column": "features",
+      "type": "text",
+      "required": false,
+      "help_mode": "unique_values",
+      "help_table": "license_servers",
+      "help_column": "features"
+    },
+    {
+      "key": "resource",
+      "label": "Resource name",
+      "group": "resource_ref",
+      "table": "resources_REF",
+      "column": "resource",
+      "type": "text",
+      "required": false,
+      "help_mode": "unique_values",
+      "help_table": "resources_REF",
+      "help_column": "resource"
+    },
+    {
+      "key": "description",
+      "label": "Description",
+      "group": "resource_ref",
+      "table": "resources_REF",
+      "column": "description",
+      "type": "text",
+      "required": false,
+      "help_mode": "unique_values",
+      "help_table": "resources_REF",
+      "help_column": "description"
+    },
+    {
+      "key": "resourcegroup_ID",
+      "label": "Resource group ID",
+      "group": "resource_ref",
+      "table": "resources_REF",
+      "column": "resourcegroup_ID",
+      "type": "text",
+      "required": false,
+      "placeholder": "Resource group ID",
+      "help_mode": "lookup_rows",
+      "help_table": "resourcegroups",
+      "help_columns": ["ID", "resourcegroup", "sortorder"]
+    },
+    {
+      "key": "active",
+      "label": "Active",
+      "group": "resource_ref",
+      "table": "resources_REF",
+      "column": "active",
+      "type": "text",
+      "required": false,
+      "help_mode": "unique_values",
+      "help_table": "resources_REF",
+      "help_column": "active"
+    },
+    {
+      "key": "useReason",
+      "label": "Use reason",
+      "group": "resource_ref",
+      "table": "resources_REF",
+      "column": "useReason",
+      "type": "text",
+      "required": false,
+      "help_mode": "unique_values",
+      "help_table": "resources_REF",
+      "help_column": "useReason"
+    },
+    {
+      "key": "useLS",
+      "label": "Use LS",
+      "group": "resource_ref",
+      "table": "resources_REF",
+      "column": "useLS",
+      "type": "text",
+      "required": false,
+      "help_mode": "unique_values",
+      "help_table": "resources_REF",
+      "help_column": "useLS"
+    },
+    {
+      "key": "wlDistLS",
+      "label": "WL dist LS",
+      "group": "resource_ref",
+      "table": "resources_REF",
+      "column": "wlDistLS",
+      "type": "text",
+      "required": false,
+      "help_mode": "unique_values",
+      "help_table": "resources_REF",
+      "help_column": "wlDistLS"
+    },
+    {
+      "key": "ls_alloc_buffer",
+      "label": "LS alloc buffer",
+      "group": "resource_ref",
+      "table": "resources_REF",
+      "column": "ls_alloc_buffer",
+      "type": "text",
+      "required": false,
+      "help_mode": "unique_values",
+      "help_table": "resources_REF",
+      "help_column": "ls_alloc_buffer"
+    },
+    {
+      "key": "skipSite2WAN",
+      "label": "Skip site to WAN",
+      "group": "resource_ref",
+      "table": "resources_REF",
+      "column": "skipSite2WAN",
+      "type": "text",
+      "required": false,
+      "help_mode": "unique_values",
+      "help_table": "resources_REF",
+      "help_column": "skipSite2WAN"
+    },
+    {
+      "key": "skipmodlicenses",
+      "label": "Skip mod licenses",
+      "group": "resource_ref",
+      "table": "resources_REF",
+      "column": "skipmodlicenses",
+      "type": "text",
+      "required": false,
+      "help_mode": "unique_values",
+      "help_table": "resources_REF",
+      "help_column": "skipmodlicenses"
+    },
+    {
+      "key": "res_type",
+      "label": "Resource type",
+      "group": "resource_ref",
+      "table": "resources_REF",
+      "column": "res_type",
+      "type": "text",
+      "required": false,
+      "help_mode": "unique_values",
+      "help_table": "resources_REF",
+      "help_column": "res_type"
+    },
+    {
+      "key": "res_increasing",
+      "label": "Res increasing",
+      "group": "resource_ref",
+      "table": "resources_REF",
+      "column": "res_increasing",
+      "type": "text",
+      "required": false,
+      "help_mode": "unique_values",
+      "help_table": "resources_REF",
+      "help_column": "res_increasing"
+    },
+    {
+      "key": "res_interval",
+      "label": "Res interval",
+      "group": "resource_ref",
+      "table": "resources_REF",
+      "column": "res_interval",
+      "type": "text",
+      "required": false,
+      "help_mode": "unique_values",
+      "help_table": "resources_REF",
+      "help_column": "res_interval"
+    },
+    {
+      "key": "res_builtin",
+      "label": "Res builtin",
+      "group": "resource_ref",
+      "table": "resources_REF",
+      "column": "res_builtin",
+      "type": "text",
+      "required": false,
+      "help_mode": "unique_values",
+      "help_table": "resources_REF",
+      "help_column": "res_builtin"
+    },
+    {
+      "key": "res_release",
+      "label": "Res release",
+      "group": "resource_ref",
+      "table": "resources_REF",
+      "column": "res_release",
+      "type": "text",
+      "required": false,
+      "help_mode": "unique_values",
+      "help_table": "resources_REF",
+      "help_column": "res_release"
+    },
+    {
+      "key": "res_consumable",
+      "label": "Res consumable",
+      "group": "resource_ref",
+      "table": "resources_REF",
+      "column": "res_consumable",
+      "type": "text",
+      "required": false,
+      "help_mode": "unique_values",
+      "help_table": "resources_REF",
+      "help_column": "res_consumable"
+    },
+    {
+      "key": "fixdyn",
+      "label": "Fix/dyn",
+      "group": "resource_ref",
+      "table": "resources_REF",
+      "column": "fixdyn",
+      "type": "text",
+      "required": false,
+      "help_mode": "unique_values",
+      "help_table": "resources_REF",
+      "help_column": "fixdyn"
+    },
+    {
+      "key": "resusage_method",
+      "label": "Resource usage method",
+      "group": "resource_ref",
+      "table": "resources_REF",
+      "column": "resusage_method",
+      "type": "text",
+      "required": false,
+      "help_mode": "unique_values",
+      "help_table": "resources_REF",
+      "help_column": "resusage_method"
+    }
+  ]
+}

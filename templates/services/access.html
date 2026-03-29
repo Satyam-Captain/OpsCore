@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Service access · OpsCore{% endblock %}
+
+{% block content %}
+<header class="page-header-block">
+  <h1 class="page-title">Service access (prototype)</h1>
+  <p class="page-description">
+    You start as <strong>admin</strong> on each new browser session. After a <strong>server restart</strong>, your role resets to admin as well (the session is tied to the running server process). Enter the superadmin password only when you need elevated actions; that lasts until you drop the role, close the browser, or restart the server. Logic lives in <code>services/authz.py</code>.
+  </p>
+</header>
+
+<div class="card card-scan" style="margin-bottom: 1.25rem;">
+  <h2 class="page-title" style="font-size: 1.05rem;">Current session role</h2>
+  <p><strong>{{ role }}</strong></p>
+  {% if role == 'superadmin' %}
+  <p class="page-description">You can create parallel workspaces when an active one already exists, and open the admin dashboard.</p>
+  {% else %}
+  <p class="page-description">Normal admin: starting a new operation is blocked when an active workspace already exists for the same service and request number.</p>
+  {% endif %}
+</div>
+
+<div class="card card-scan" style="margin-bottom: 1.25rem;">
+  <h2 class="page-title" style="font-size: 1.05rem;">Elevate to superadmin</h2>
+  <p class="page-description">Prototype password only — not for production.</p>
+  <form method="post" action="{{ url_for('services.access') }}">
+    <label for="superadmin_password">Superadmin password</label>
+    <input type="password" name="superadmin_password" id="superadmin_password" autocomplete="off" style="max-width: 20rem;">
+    <p style="margin-top: 0.75rem;">
+      <button type="submit" class="btn btn-primary">Sign in as superadmin</button>
+    </p>
+  </form>
+</div>
+
+<div class="card card-scan" style="margin-bottom: 1.25rem;">
+  <h2 class="page-title" style="font-size: 1.05rem;">Return to admin</h2>
+  <form method="post" action="{{ url_for('services.logout_role') }}">
+    <button type="submit" class="btn">Drop superadmin role</button>
+  </form>
+</div>
+
+<p>
+  <a href="{{ url_for('services.index') }}" class="btn">Back to services</a>
+  {% if role == 'superadmin' %}
+  <a href="{{ url_for('services.admin_dashboard') }}" class="btn" style="margin-left: 0.5rem;">Admin dashboard</a>
+  {% endif %}
+</p>
+{% endblock %}

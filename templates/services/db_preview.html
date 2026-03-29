@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}DB preview · Operation · OpsCore{% endblock %}
+
+{% block content %}
+<header class="page-header-block">
+  <h1 class="page-title">Database preview</h1>
+  <p class="page-description">
+    {% if table_scope is defined and table_scope %}
+    Table-scoped preview (<code>{{ table_scope }}</code>) for operation <code>{{ operation.operation_id[:8] }}…</code>
+    (request {{ operation.request_number }}). Review the row below, then apply or go back.
+    {% else %}
+    Planned inserts into the mock JSON database for operation <code>{{ operation.operation_id[:8] }}…</code>
+    (request {{ operation.request_number }}). Review rows below, then apply or go back.
+    {% endif %}
+  </p>
+  {% if table_scope is defined and table_scope and table_back_url is defined %}
+  <p class="page-description"><a href="{{ table_back_url }}">← Back to table workspace</a></p>
+  {% endif %}
+</header>
+
+{% if dependency_blocked is defined and dependency_blocked %}
+  <div class="alert alert-error" role="status">Requires <code>license_servers</code> to be applied first. Use the license_servers table workspace to preview and apply that insert.</div>
+{% endif %}
+
+{% if already_applied %}
+  <div class="alert alert-error">These changes were already applied. Inserts are not run again.</div>
+{% endif %}
+
+{% if partial_apply_note is defined and partial_apply_note %}
+  <div class="alert alert-error" role="status">{{ partial_apply_note }}</div>
+{% endif %}
+
+{% if validation_errors %}
+  <div class="alert alert-error" role="status">
+    <strong>Fix service inputs before applying:</strong>
+    <ul style="margin: 0.5rem 0 0 1.25rem;">
+      {% for err in validation_errors %}
+        <li>{{ err }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}
+
+{% if table_scope is not defined or table_scope == 'license_servers' %}
+<div class="card card-scan" style="margin-bottom: 1.25rem;">
+  <h2 class="page-title" style="font-size: 1.05rem;">{% if table_scope is defined and table_scope == 'license_servers' %}Insert: license_servers{% else %}Insert 1: license_servers{% endif %}</h2>
+  <p class="page-description">Table: <code>license_servers</code></p>
+  <table class="services-ops-table">
+    <thead><tr><th>Column</th><th>Value</th></tr></thead>
+    <tbody>
+      {% for k, v in preview_license_servers | dictsort %}
+        <tr><td><code>{{ k }}</code></td><td>{{ v }}</td></tr>
+      {% else %}
+        <tr><td colspan="2" class="page-description">(no fields — fix validation errors)</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if table_scope is not defined or table_scope == 'resources_REF' %}
+<div class="card card-scan" style="margin-bottom: 1.25rem;">
+  <h2 class="page-title" style="font-size: 1.05rem;">{% if table_scope is defined and table_scope == 'resources_REF' %}Insert: resources_REF{% else %}Insert 2: resources_REF{% endif %}</h2>
+  <p class="page-description">Table: <code>resources_REF</code> — {% if table_scope is defined and table_scope == 'resources_REF' and license_server_id_for_preview is defined and license_server_id_for_preview is not none %}<code>license_server_ID</code> = <strong>{{ license_server_id_for_preview }}</strong> (from applied license_servers step).{% else %}<code>license_server_ID</code> will be set from insert 1 when you apply.{% endif %}</p>
+  <table class="services-ops-table">
+    <thead><tr><th>Column</th><th>Value</th></tr></thead>
+    <tbody>
+      {% for k, v in preview_resources_ref | dictsort %}
+        <tr><td><code>{{ k }}</code></td><td>{{ v }}</td></tr>
+      {% else %}
+        <tr><td colspan="2" class="page-description">(no fields — fix validation errors)</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if not (lifecycle_execution_enabled | default(true)) %}
+  <p class="alert alert-warning" role="status">Request is closed — database apply is disabled.</p>
+{% endif %}
+{% if can_apply and db_confirm_url is defined and db_confirm_url %}
+  <div class="alert alert-info" role="status">
+    <strong>Review this database action carefully before execution.</strong> The next page shows the same insert preview; only there can you confirm and run the apply.
+  </div>
+  <p style="margin-top: 0.75rem;">
+    <a href="{{ db_confirm_url }}" class="btn btn-primary">{% if table_scope is defined and table_scope %}Review and confirm apply for this table{% else %}Review and confirm apply{% endif %}</a>
+    {% if table_back_url is defined %}
+    <a href="{{ table_back_url }}" class="btn" style="margin-left: 0.5rem;">Back</a>
+    {% else %}
+    <a href="{{ url_for('services.operation_view', operation_id=operation.operation_id) }}" class="btn" style="margin-left: 0.5rem;">Cancel</a>
+    {% endif %}
+  </p>
+{% elif can_apply %}
+  {# Fallback if confirm URL missing #}
+  <p class="page-description">Confirmation step unavailable; use the full operation DB flow.</p>
+{% else %}
+  <p>
+    <a href="{{ url_for('services.operation_inputs', operation_id=operation.operation_id) }}" class="btn btn-primary">Edit service inputs</a>
+    {% if table_back_url is defined %}
+    <a href="{{ table_back_url }}" class="btn" style="margin-left: 0.5rem;">Back</a>
+    {% else %}
+    <a href="{{ url_for('services.operation_view', operation_id=operation.operation_id) }}" class="btn" style="margin-left: 0.5rem;">Back to operation</a>
+    {% endif %}
+  </p>
+{% endif %}
+{% endblock %}

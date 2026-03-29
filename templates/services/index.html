@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Services · OpsCore{% endblock %}
+
+{% block content %}
+<header class="page-header-block">
+  <h1 class="page-title">Services</h1>
+  <p class="page-description">
+    Controlled operations loaded from JSON definitions. Start a flow to create a tracked operation record, or reopen an existing one.
+  </p>
+  <p style="margin-top: 0.5rem;">
+    <a class="btn" href="{{ url_for('services.operations_list') }}">All operations</a>
+    <a class="btn" href="{{ url_for('services.access') }}" style="margin-left: 0.35rem;">Service access</a>
+    <a class="btn" href="{{ url_for('services.admin_dashboard') }}" style="margin-left: 0.35rem;">Admin dashboard</a>
+  </p>
+</header>
+
+{% if not services %}
+  <p class="page-description">No service definitions found or registry failed to load.</p>
+{% else %}
+  <ul class="card" style="list-style: none; margin: 0; padding: 1rem 1.25rem;">
+    {% for s in services %}
+      <li style="padding: 0.75rem 0; border-bottom: 1px solid var(--color-border);">
+        <strong>{{ s.name }}</strong>
+        <span class="page-description" style="display: block; margin-top: 0.35rem;">{{ s.description }}</span>
+        <div style="margin-top: 0.5rem;">
+          <a class="btn btn-primary" href="{{ url_for('services.start', service_id=s.id) }}">Start</a>
+          <code style="margin-left: 0.5rem;">{{ s.id }}</code>
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+{% endif %}
+{% endblock %}

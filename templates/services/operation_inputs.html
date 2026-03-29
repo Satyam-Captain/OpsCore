@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Service inputs · {{ service.name }} · OpsCore{% endblock %}
+
+{% block content %}
+<header class="page-header-block">
+  <h1 class="page-title">Service inputs</h1>
+  <p class="page-description">
+    {{ service.name }} — request <strong>{{ operation.request_number }}</strong>.
+    Help shows sample values from the mock JSON database; you may still type any value you need. You are responsible for correctness.
+  </p>
+</header>
+
+{% if no_schema %}
+  <div class="card card-scan">
+    <p class="page-description">This service has no guided input schema yet. Nothing to fill in here.</p>
+    <p><a href="{{ url_for('services.operation_view', operation_id=operation.operation_id) }}" class="btn btn-primary">Back to operation</a></p>
+  </div>
+{% else %}
+  <form method="post" class="card card-scan services-inputs-form" id="services-inputs-form">
+    <h2 class="page-title" style="font-size: 1.05rem;">License server fields</h2>
+    {% for field in fields_license_server %}
+      <div class="services-input-row">
+        <label for="field-{{ field.key }}">{{ field.label }}{% if field.required %} <span class="page-description">(required)</span>{% endif %}</label>
+        <div class="services-input-controls">
+          <input
+            type="text"
+            name="{{ field.key }}"
+            id="field-{{ field.key }}"
+            value="{{ service_inputs.get(field.key, '') }}"
+            {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}
+            autocomplete="off"
+          >
+          {% if field.help_mode %}
+          <button type="button" class="btn services-help-btn" data-help-target="help-{{ field.key }}"
+            data-help-url="{{ url_for('services.operation_field_help', operation_id=operation.operation_id, field_key=field.key) }}">
+            Help
+          </button>
+          {% endif %}
+        </div>
+        <div class="field-help-out" id="help-{{ field.key }}" aria-live="polite"></div>
+      </div>
+    {% endfor %}
+
+    <h2 class="page-title" style="font-size: 1.05rem; margin-top: 1.5rem;">Resource definition fields</h2>
+    {% for field in fields_resource_ref %}
+      <div class="services-input-row">
+        <label for="field-{{ field.key }}">{{ field.label }}{% if field.required %} <span class="page-description">(required)</span>{% endif %}</label>
+        <div class="services-input-controls">
+          <input
+            type="text"
+            name="{{ field.key }}"
+            id="field-{{ field.key }}"
+            value="{{ service_inputs.get(field.key, '') }}"
+            {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}
+            autocomplete="off"
+          >
+          {% if field.help_mode %}
+          <button type="button" class="btn services-help-btn" data-help-target="help-{{ field.key }}"
+            data-help-url="{{ url_for('services.operation_field_help', operation_id=operation.operation_id, field_key=field.key) }}">
+            Help
+          </button>
+          {% endif %}
+        </div>
+        <div class="field-help-out" id="help-{{ field.key }}" aria-live="polite"></div>
+      </div>
+    {% endfor %}
+
+    <p style="margin-top: 1.25rem;">
+      <button type="submit" class="btn btn-primary">Save inputs</button>
+      <a href="{{ url_for('services.operation_view', operation_id=operation.operation_id) }}" class="btn" style="margin-left: 0.5rem;">Cancel</a>
+    </p>
+  </form>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+  {% if not no_schema %}
+  <script src="{{ url_for('static', filename='services_inputs.js') }}" defer></script>
+  {% endif %}
+{% endblock %}

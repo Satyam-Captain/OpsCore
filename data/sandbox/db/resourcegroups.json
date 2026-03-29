@@ -1,0 +1,5 @@
+[
+  { "ID": 14, "resourcegroup": "caesam", "sortorder": "S" },
+  { "ID": 24, "resourcegroup": "abaqus", "sortorder": "S" },
+  { "ID": 30, "resourcegroup": "hyperworks_pool", "sortorder": "P" }
+]
