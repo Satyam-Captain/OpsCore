@@ -32,6 +32,50 @@ def find_guided_field(
     return None
 
 
+def _cluster_name_from_row(row: Dict[str, Any]) -> str:
+    """Best-effort cluster display name (column often ``cluster``; MariaDB may vary casing)."""
+    if not isinstance(row, dict):
+        return ""
+    for rk, rv in row.items():
+        if str(rk).lower() == "cluster":
+            if rv is None:
+                return ""
+            return str(rv).strip()
+    return ""
+
+
+def _build_lic_collector_id_help_rows(
+    db: DbAdapterBase,
+) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    """
+    Distinct ``licCollector_ID`` from ``license_servers``, with names from ``clusters`` (``ID`` → ``cluster``).
+    """
+    try:
+        raw_ids = db.get_unique_values("license_servers", "licCollector_ID")
+    except Exception as e:
+        return [], "licCollector_ID help failed: %s" % e
+    rows: List[Dict[str, Any]] = []
+    seen = set()
+    for raw in raw_ids:
+        if raw is None:
+            continue
+        try:
+            lid = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if lid in seen:
+            continue
+        seen.add(lid)
+        try:
+            crow = db.get_row_by_id("clusters", lid)
+        except Exception as e:
+            return [], "licCollector_ID help failed: %s" % e
+        label = _cluster_name_from_row(crow) if isinstance(crow, dict) else ""
+        rows.append({"ID": lid, "cluster": label})
+    rows.sort(key=lambda r: int(r.get("ID") or 0))
+    return rows, None
+
+
 def build_help_payload(
     db: DbAdapterBase, field_def: Dict[str, Any]
 ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
@@ -43,6 +87,18 @@ def build_help_payload(
     key = field_def.get("key")
     if not key:
         return None, "invalid field definition"
+
+    if str(key) == "licCollector_ID":
+        rows, err = _build_lic_collector_id_help_rows(db)
+        if err:
+            return None, err
+        payload = {
+            "mode": MODE_LOOKUP,
+            "field": str(key),
+            "rows": rows,
+            "fill_column": "ID",
+        }
+        return payload, None
 
     mode = field_def.get("help_mode")
     if mode == MODE_UNIQUE:

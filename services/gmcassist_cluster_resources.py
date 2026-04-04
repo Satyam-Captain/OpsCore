@@ -23,15 +23,34 @@ def wizard_def_includes_cluster_resources(wizard_def: Dict[str, Any]) -> bool:
     return False
 
 
+def _cluster_row_display_name(row: Dict[str, Any]) -> str:
+    """First non-ID string value (handles MariaDB key casing)."""
+    best = ""
+    for rk, rv in row.items():
+        if str(rk).upper() == "ID":
+            continue
+        if rv is None:
+            continue
+        s = str(rv).strip()
+        if s:
+            # Prefer conventional name column when multiple keys exist
+            lk = str(rk).lower()
+            if lk == "cluster":
+                return s
+            if not best:
+                best = s
+    return best
+
+
 def cluster_help_rows_from_db(db: Any) -> List[Dict[str, Any]]:
     """
-    Rows for cluster_ID picker: ``cluster_ID`` (fill) and ``label`` (display).
+    Rows for cluster_ID picker help: numeric ``ID`` (filled into the form) and ``cluster`` name (display).
 
-    Tries common ``clusters`` column sets; falls back to ``ID`` only.
+    Tries common ``clusters`` column sets; ``ID`` + ``cluster`` matches JSON mock and typical MariaDB schema.
     """
     candidates = (
-        ["ID", "name"],
         ["ID", "cluster"],
+        ["ID", "name"],
         ["ID", "clusterName"],
         ["ID", "hostname"],
         ["ID"],
@@ -39,7 +58,7 @@ def cluster_help_rows_from_db(db: Any) -> List[Dict[str, Any]]:
     for cols in candidates:
         try:
             raw = db.get_all_rows("clusters", cols)
-        except (ValueError, TypeError, OSError):
+        except Exception:
             continue
         if not isinstance(raw, list):
             continue
@@ -51,18 +70,12 @@ def cluster_help_rows_from_db(db: Any) -> List[Dict[str, Any]]:
                 cid = int(r.get("ID"))
             except (TypeError, ValueError):
                 continue
-            label_parts: List[str] = []
-            for k, v in r.items():
-                if str(k).upper() == "ID":
-                    continue
-                if v is None:
-                    continue
-                s = str(v).strip()
-                if s:
-                    label_parts.append(s)
-            label = " — ".join(label_parts) if label_parts else str(cid)
-            out.append({"cluster_ID": cid, "label": "%s (%s)" % (label, cid)})
+            if cid <= 0:
+                continue
+            cname = _cluster_row_display_name(r)
+            out.append({"ID": cid, "cluster": cname})
         if out:
+            out.sort(key=lambda x: int(x.get("ID") or 0))
             return out
     return []
 

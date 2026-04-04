@@ -119,9 +119,7 @@
       "type": "text",
       "required": false,
       "placeholder": "Cluster collector ID",
-      "help_mode": "lookup_rows",
-      "help_table": "clusters",
-      "help_columns": ["ID", "cluster"]
+      "help_mode": "lookup_rows"
     },
     {
       "key": "company",

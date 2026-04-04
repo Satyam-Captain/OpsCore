@@ -33,6 +33,45 @@ def _is_cluster_resources_apply_step(step_def: Dict[str, Any]) -> bool:
     return str(step_def.get("type") or "").strip() == "cluster_resources_apply"
 
 
+def _cluster_resources_apply_index(wizard_def: Dict[str, Any]) -> Optional[int]:
+    steps = wizard_def.get("steps")
+    if not isinstance(steps, list):
+        return None
+    for i, st in enumerate(steps):
+        if isinstance(st, dict) and _is_cluster_resources_apply_step(st):
+            return i
+    return None
+
+
+def _needs_cluster_resources_rollback(
+    apply_index: Optional[int],
+    from_index: int,
+    target_index: int,
+    raw_ids: Any,
+) -> bool:
+    """
+    True when backing up past the cluster_resources apply step while inserted IDs are recorded.
+
+    Covers:
+    - from generate (or later) back onto apply (target <= apply_index < from)
+    - from apply back onto form (from == apply_index, target < apply_index)
+    - any further Back before apply with stale IDs (e.g. 12→11) so DB does not keep orphan rows
+    """
+    if apply_index is None:
+        return False
+    if not isinstance(raw_ids, list) or len(raw_ids) == 0:
+        return False
+    if from_index <= target_index:
+        return False
+    if from_index > apply_index and target_index <= apply_index:
+        return True
+    if from_index == apply_index and target_index < apply_index:
+        return True
+    if from_index < apply_index and target_index < apply_index:
+        return True
+    return False
+
+
 def _pop_step_data_for_targets(run: Dict[str, Any], wizard_def: Dict[str, Any], kinds: Tuple[str, ...]) -> None:
     """Remove ``step_data`` entries for db_insert steps whose insert_target matches ``kinds``."""
     steps = wizard_def.get("steps")
@@ -61,17 +100,52 @@ def _pop_step_data_for_targets(run: Dict[str, Any], wizard_def: Dict[str, Any], 
                 del sd[sid]
 
 
+def _rollback_cluster_resources_rows(
+    settings: Dict[str, Any],
+    run: Dict[str, Any],
+    wizard_def: Dict[str, Any],
+    ctx: Dict[str, Any],
+    raw_ids: List[Any],
+) -> Tuple[bool, Optional[str]]:
+    db, _, _ = build_adapters(settings)
+    stack: List[Dict[str, Any]] = []
+    for raw in reversed(raw_ids):
+        try:
+            cid = int(raw)
+        except (TypeError, ValueError):
+            return False, "Invalid cluster_resource row id in wizard context; cannot roll back safely."
+        stack.append({"type": "delete_by_id", "table": TABLE_CLUSTER_RESOURCES, "id": cid})
+    results = execute_elim_rollback(db, stack)
+    failed = [r for r in results if r.get("status") == "failed"]
+    if failed:
+        err_parts = [str(r.get("error")) for r in failed if r.get("error")]
+        msg = "; ".join(err_parts) if err_parts else "Database delete failed."
+        return (
+            False,
+            "Rollback failed (%s). Wizard state was not changed. "
+            "Check DB connectivity, permissions, and whether the row still exists."
+            % msg,
+        )
+    ctx["cluster_resource_row_ids"] = []
+    _pop_step_data_for_targets(run, wizard_def, ("cluster_resources",))
+    return True, "Rolled back cluster_resources inserts."
+
+
 def maybe_rollback_before_navigate_back(
     settings: Dict[str, Any],
     run: Dict[str, Any],
     wizard_def: Dict[str, Any],
     target_index: int,
+    from_index: int,
 ) -> Tuple[bool, Optional[str]]:
     """
-    Called when navigating Back from ``target_index + 1`` to ``target_index``.
+    Called when navigating Back from ``from_index`` to ``target_index`` (typically ``from_index - 1``).
 
     If ``steps[target_index]`` is a ``db_insert`` step whose row(s) are reflected in
     ``context`` / ``step_data``, delete those rows via the DB adapter.
+
+    ``cluster_resources`` inserts are rolled back when backing up across the apply step
+    (including from apply → form) while ``context.cluster_resource_row_ids`` is non-empty.
 
     Returns ``(True, None)`` if nothing to do or rollback succeeded without a user message.
     Returns ``(True, msg)`` on successful rollback (optional flash).
@@ -80,50 +154,38 @@ def maybe_rollback_before_navigate_back(
     steps = wizard_def.get("steps")
     if not isinstance(steps, list) or target_index < 0 or target_index >= len(steps):
         return True, None
+    if from_index < 0 or from_index >= len(steps):
+        return True, None
+
+    ctx = ensure_wizard_context(run)
+    apply_i = _cluster_resources_apply_index(wizard_def)
+    raw_cr = ctx.get("cluster_resource_row_ids")
+
+    if _needs_cluster_resources_rollback(apply_i, from_index, target_index, raw_cr):
+        return _rollback_cluster_resources_rows(
+            settings, run, wizard_def, ctx, list(raw_cr)
+        )
+
+    # Landed on cluster_resources_apply with no inserted rows: clear stale step_data only.
+    if apply_i is not None and target_index == apply_i:
+        if not isinstance(raw_cr, list) or len(raw_cr) == 0:
+            _pop_step_data_for_targets(run, wizard_def, ("cluster_resources",))
+            return True, None
 
     step_def = steps[target_index]
     if not isinstance(step_def, dict):
         return True, None
     stype = str(step_def.get("type") or "").strip()
-    if stype != "db_insert" and not _is_cluster_resources_apply_step(step_def):
+    if stype != "db_insert":
         return True, None
 
     it_raw = _norm_insert_target(step_def.get("insert_target"))
-    if stype == "db_insert" and not it_raw:
+    if not it_raw:
         return True, None
 
-    ctx = ensure_wizard_context(run)
     db, _, _ = build_adapters(settings)
 
     stack: List[Dict[str, Any]] = []
-
-    if _is_cluster_resources_apply_step(step_def):
-        raw_ids = ctx.get("cluster_resource_row_ids")
-        if not isinstance(raw_ids, list) or len(raw_ids) == 0:
-            _pop_step_data_for_targets(run, wizard_def, ("cluster_resources",))
-            return True, None
-        for raw in reversed(raw_ids):
-            try:
-                cid = int(raw)
-            except (TypeError, ValueError):
-                return False, "Invalid cluster_resource row id in wizard context; cannot roll back safely."
-            stack.append(
-                {"type": "delete_by_id", "table": TABLE_CLUSTER_RESOURCES, "id": cid}
-            )
-        results = execute_elim_rollback(db, stack)
-        failed = [r for r in results if r.get("status") == "failed"]
-        if failed:
-            err_parts = [str(r.get("error")) for r in failed if r.get("error")]
-            msg = "; ".join(err_parts) if err_parts else "Database delete failed."
-            return (
-                False,
-                "Rollback failed (%s). Wizard state was not changed. "
-                "Check DB connectivity, permissions, and whether the row still exists."
-                % msg,
-            )
-        ctx["cluster_resource_row_ids"] = []
-        _pop_step_data_for_targets(run, wizard_def, ("cluster_resources",))
-        return True, "Rolled back cluster_resources inserts."
 
     if _is_resource_target(it_raw):
         rr_raw = ctx.get("resource_id")

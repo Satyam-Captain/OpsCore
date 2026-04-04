@@ -804,7 +804,7 @@ def service_field_help(service_id: str, field_key: str):
 
 def help_cluster_resources_clusters():
 
-    """JSON rows for cluster_ID picker: cluster_ID + label (name + id)."""
+    """JSON rows for cluster_ID picker: ``ID`` + ``cluster`` name from ``clusters`` table."""
 
     settings = _load_settings()
 
@@ -816,7 +816,13 @@ def help_cluster_resources_clusters():
 
         return jsonify({"error": str(e), "rows": []}), 503
 
-    rows = cluster_help_rows_from_db(db)
+    try:
+
+        rows = cluster_help_rows_from_db(db)
+
+    except Exception as e:
+
+        return jsonify({"error": "cluster help failed: %s" % e, "rows": []}), 500
 
     return jsonify({"rows": rows})
 
@@ -1052,7 +1058,7 @@ def wizard_run(run_id: str):
 
                 ok_rb, rb_msg = maybe_rollback_before_navigate_back(
 
-                    settings, run_back, wizard_def, target
+                    settings, run_back, wizard_def, target, idx
 
                 )
 

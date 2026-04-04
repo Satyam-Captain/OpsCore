@@ -477,31 +477,52 @@
   var hc = document.getElementById("gmcassist-cr-help-cluster");
   if (hc) {
     hc.addEventListener("click", function () {
-      fetch(urlC).then(function (r) { return r.json(); }).then(function (data) {
-        var rows = data.rows || [];
-        if (!rows.length) {
-          showPanel("c", "<p class=\"text-muted\">No cluster rows returned.</p>");
-          return;
-        }
-        var h = "<p class=\"page-description help-click-hint\">Click a row to fill <strong>cluster_ID</strong> on the focused row.</p><table class=\"help-lookup-table help-lookup-table--clickable\"><thead><tr><th>Label</th><th>cluster_ID</th></tr></thead><tbody>";
-        rows.forEach(function (row) {
-          h += "<tr style=\"cursor:pointer\" title=\"Fill cluster_ID\"><td>" + esc(String(row.label || "")) + "</td><td>" + esc(String(row.cluster_ID != null ? row.cluster_ID : "")) + "</td></tr>";
-        });
-        h += "</tbody></table>";
-        showPanel("c", h);
-        if (panelC) {
-          panelC.querySelectorAll("tbody tr").forEach(function (tr, i) {
-            tr.addEventListener("click", function () {
-              var row = rows[i];
-              if (!row || currentRow == null) return;
-              var inp = currentRow.querySelector(".gmcassist-cr-cluster-id");
-              if (inp) inp.value = row.cluster_ID != null ? String(row.cluster_ID) : "";
-            });
+      if (!urlC) {
+        showPanel("c", "<p class=\"alert alert-error\">Cluster help URL is not configured.</p>");
+        return;
+      }
+      fetch(urlC, { credentials: "same-origin" })
+        .then(function (r) {
+          return r.json().then(function (data) {
+            return { ok: r.ok, status: r.status, data: data };
           });
-        }
-      }).catch(function () {
-        showPanel("c", "<p class=\"alert alert-error\">Failed to load cluster help.</p>");
-      });
+        })
+        .then(function (res) {
+          if (!res.ok) {
+            var err = (res.data && res.data.error) ? String(res.data.error) : ("HTTP " + res.status);
+            showPanel("c", "<p class=\"alert alert-error\">" + esc(err) + "</p>");
+            return;
+          }
+          var data = res.data;
+          var rows = data.rows || [];
+          if (!rows.length) {
+            showPanel("c", "<p class=\"text-muted\">No cluster rows returned.</p>");
+            return;
+          }
+          var h = "<p class=\"page-description help-click-hint\">Click a row to fill <strong>cluster_ID</strong> (numeric ID only) on the focused row.</p><table class=\"help-lookup-table help-lookup-table--clickable\"><thead><tr><th>ID</th><th>cluster</th></tr></thead><tbody>";
+          rows.forEach(function (row) {
+            var idVal = row.ID != null ? row.ID : row.cluster_ID;
+            var nameVal = row.cluster != null ? row.cluster : row.label || "";
+            h += "<tr style=\"cursor:pointer\" title=\"Fill cluster_ID\"><td>" + esc(String(idVal != null ? idVal : "")) + "</td><td>" + esc(String(nameVal)) + "</td></tr>";
+          });
+          h += "</tbody></table>";
+          showPanel("c", h);
+          if (panelC) {
+            panelC.querySelectorAll("tbody tr").forEach(function (tr, i) {
+              tr.addEventListener("click", function () {
+                var row = rows[i];
+                if (!row || currentRow == null) return;
+                var inp = currentRow.querySelector(".gmcassist-cr-cluster-id");
+                if (!inp) return;
+                var pick = row.ID != null ? row.ID : row.cluster_ID;
+                inp.value = pick != null ? String(pick) : "";
+              });
+            });
+          }
+        })
+        .catch(function () {
+          showPanel("c", "<p class=\"alert alert-error\">Failed to load cluster help (network or invalid response).</p>");
+        });
     });
   }
 
