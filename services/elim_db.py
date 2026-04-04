@@ -2,7 +2,8 @@
 License-resource DB path: map ``service_inputs`` to JSON DB rows, preview, apply, rollback.
 
 Supported service ids: ``add_license_resource_elim`` (ELIM) and ``add_license_resource_ls`` (LS).
-Same tables and apply steps; rollback execution uses the JSON adapter's ``delete_row_by_id``.
+Same tables and apply steps; rollback uses the active DB adapter's ``delete_row_by_id``
+(JSON file or MariaDB, depending on ``service_db_backend``).
 """
 
 
@@ -178,6 +179,22 @@ def validate_elim_service_inputs(si: Optional[Dict[str, Any]]) -> List[str]:
     return errors
 
 
+def validate_license_server_inputs_only(si: Optional[Dict[str, Any]]) -> List[str]:
+    """Validate only ``license_servers`` row fields (wizard partial steps)."""
+    if not si or not isinstance(si, dict) or len(si) == 0:
+        return ["service_inputs is missing or empty"]
+    errors: List[str] = []
+    build_license_server_row(si, errors)
+    return errors
+
+
+def validate_resource_ref_inputs_only(si: Dict[str, Any], license_server_id: int) -> List[str]:
+    """Validate ``resources_REF`` row when ``license_server_id`` is already known."""
+    errors: List[str] = []
+    build_resource_ref_row(si, license_server_id, errors, preview=False)
+    return errors
+
+
 def build_elim_preview(
     si: Dict[str, Any],
 ) -> Tuple[Dict[str, Any], Dict[str, Any], List[str]]:
@@ -242,7 +259,7 @@ def apply_elim_license_server_only(
     db: Any, si: Dict[str, Any]
 ) -> Tuple[bool, Optional[int], List[str]]:
     """Insert ``license_servers`` row only (table-scoped apply)."""
-    pre = validate_elim_service_inputs(si)
+    pre = validate_license_server_inputs_only(si)
     if pre:
         return False, None, pre
     ls_row = build_license_server_row(si, [])
@@ -257,7 +274,7 @@ def apply_elim_resource_only(
     db: Any, si: Dict[str, Any], license_server_id: int
 ) -> Tuple[bool, Optional[int], List[str]]:
     """Insert ``resources_REF`` row only; ``license_server_id`` must already exist."""
-    pre = validate_elim_service_inputs(si)
+    pre = validate_resource_ref_inputs_only(si, license_server_id)
     if pre:
         return False, None, pre
     rr_apply = build_resource_ref_row(si, license_server_id, [], preview=False)

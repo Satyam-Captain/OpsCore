@@ -11,6 +11,7 @@ from services.adapters.request_base import RequestDirAdapterBase
 from services.adapters.request_gmc import GmcRequestDirAdapter
 from services.adapters.request_local import LocalLsfRequestDirAdapter
 from services.adapters.scripts_base import ScriptsAdapterBase
+from services.adapters.scripts_gmc import GmcScriptsAdapter
 from services.adapters.scripts_mock import MockScriptsAdapter
 
 # Office default: parent of REQ-<n> (override with service_gmc_requests_root).
@@ -54,11 +55,14 @@ def build_adapters(settings: Dict[str, Any]) -> Tuple[DbAdapterBase, RequestDirA
             f"service_request_backend={req_backend!r} not implemented"
         )
 
-    script_backend = settings.get("service_script_backend", "mock")
-    if script_backend != "mock":
+    script_backend = str(settings.get("service_script_backend", "mock") or "mock").strip().lower()
+    if script_backend == "mock":
+        scripts = MockScriptsAdapter(sandbox_abs)
+    elif script_backend == "gmc":
+        scripts = GmcScriptsAdapter.from_settings(settings)
+    else:
         raise NotImplementedError(
-            f"service_script_backend={script_backend!r} not implemented in skeleton"
+            "service_script_backend=%r not implemented" % (settings.get("service_script_backend"),)
         )
-    scripts = MockScriptsAdapter(sandbox_abs)
 
     return db, request_adapter, scripts

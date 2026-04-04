@@ -33,6 +33,7 @@
           >
           {% if field.help_mode %}
           <button type="button" class="btn services-help-btn" data-help-target="help-{{ field.key }}"
+            data-field-key="{{ field.key }}"
             data-help-url="{{ url_for('services.operation_field_help', operation_id=operation.operation_id, field_key=field.key) }}">
             Help
           </button>
@@ -57,6 +58,7 @@
           >
           {% if field.help_mode %}
           <button type="button" class="btn services-help-btn" data-help-target="help-{{ field.key }}"
+            data-field-key="{{ field.key }}"
             data-help-url="{{ url_for('services.operation_field_help', operation_id=operation.operation_id, field_key=field.key) }}">
             Help
           </button>

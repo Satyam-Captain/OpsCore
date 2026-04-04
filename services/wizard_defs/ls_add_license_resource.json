@@ -1,0 +1,24 @@
+{
+  "wizard_id": "ls_add_license_resource",
+  "service_id": "add_license_resource_ls",
+  "label": "Add License Scheduler Resource",
+  "catalog_summary": "Same DB steps as ELIM, then License Scheduler configs: lsb.resources and lsf.licensescheduler → finalize check → handoff.",
+  "description": "GMCAssist LS path: same DB steps as ELIM, then lsb.resources and lsf.licensescheduler (generate → diff → publish), finalize check, and handoff.",
+  "allowed_mock_config_types": ["lsb.resources", "lsf.licensescheduler"],
+  "steps": [
+    { "id": "request_check", "type": "request_check", "title": "Request number" },
+    { "id": "cluster_selection", "type": "cluster_selection", "title": "Clusters" },
+    { "id": "license_servers_form", "type": "form", "title": "License server row", "form_group": "license_server" },
+    { "id": "license_servers_apply", "type": "db_insert", "title": "Apply license server", "insert_target": "license_servers" },
+    { "id": "resources_ref_form", "type": "form", "title": "Resource row", "form_group": "resource_ref" },
+    { "id": "resources_ref_apply", "type": "db_insert", "title": "Apply resource", "insert_target": "resources_REF" },
+    { "id": "generate_lsb_resources", "type": "generate", "title": "Generate lsb.resources", "config_type": "lsb.resources" },
+    { "id": "diff_lsb_resources", "type": "diff", "title": "Review lsb.resources diff", "config_type": "lsb.resources" },
+    { "id": "publish_lsb_resources", "type": "publish", "title": "Publish lsb.resources", "config_type": "lsb.resources" },
+    { "id": "generate_lsf_licensescheduler", "type": "generate", "title": "Generate lsf.licensescheduler", "config_type": "lsf.licensescheduler" },
+    { "id": "diff_lsf_licensescheduler", "type": "diff", "title": "Review lsf.licensescheduler diff", "config_type": "lsf.licensescheduler" },
+    { "id": "publish_lsf_licensescheduler", "type": "publish", "title": "Publish lsf.licensescheduler", "config_type": "lsf.licensescheduler" },
+    { "id": "finalize_check", "type": "finalize_check", "title": "Finalize presence (.finalized)" },
+    { "id": "handoff", "type": "handoff", "title": "Handoff" }
+  ]
+}

@@ -54,11 +54,15 @@ def build_help_payload(
             values = db.get_unique_values(str(table), str(column))
         except ValueError:
             return None, "invalid help table"
-        return {
+        fill_column = str(field_def.get("column") or field_def.get("key") or "")
+        payload = {
             "mode": MODE_UNIQUE,
             "field": key,
             "values": values,
-        }, None
+        }
+        if fill_column:
+            payload["fill_column"] = fill_column
+        return payload, None
 
     if mode == MODE_LOOKUP:
         table = field_def.get("help_table")
@@ -72,10 +76,14 @@ def build_help_payload(
             rows = db.get_all_rows(str(table), col_list)
         except ValueError:
             return None, "invalid help table"
-        return {
+        fill_column = str(field_def.get("column") or field_def.get("key") or "")
+        payload = {
             "mode": MODE_LOOKUP,
             "field": key,
             "rows": rows,
-        }, None
+        }
+        if fill_column:
+            payload["fill_column"] = fill_column
+        return payload, None
 
     return None, "help not configured for this field"

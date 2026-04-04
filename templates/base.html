@@ -8,28 +8,37 @@
 </head>
 <body>
   {% set ep = request.endpoint %}
-  {% set nav_scan = (ep == 'index') %}
+  {% set nav_scan = (ep in ('index', 'scan')) %}
   {% set nav_compare = ep in ('compare_landing', 'file_detail', 'diff_view') %}
   {% set nav_truth = (ep == 'source_of_truth') %}
   {% set nav_gold = ep in ('gold_registry', 'gold_form') %}
-  {% set nav_services = 'services.' in (ep or '') %}
+  {% set nav_gmcassist = 'gmcassist.' in (ep or '') %}
 
   <div class="app-shell">
     <div class="app-shell-accent" aria-hidden="true"></div>
     <header class="app-shell-header">
       <div class="container app-shell-header-inner">
         <div class="app-shell-brand">
-          <a href="{{ url_for('index') }}" class="app-shell-logo">OpsCore</a>
-          <span class="app-shell-badge">Operations Platform</span>
+          <a href="{% block header_brand_href %}{{ url_for('index') }}{% endblock %}" class="app-shell-logo">{% block header_brand %}OpsCore{% endblock %}</a>
+          <span class="app-shell-badge">{% block header_badge %}Operations Platform{% endblock %}</span>
         </div>
       </div>
     </header>
     <nav class="app-shell-nav" aria-label="Primary navigation">
       <div class="container app-shell-nav-inner">
         <ul class="app-nav-list">
+          {% if nav_service_enabled %}
           <li class="app-nav-li">
             <a
-              href="{{ url_for('index') }}"
+              href="{{ url_for('gmcassist.catalog') }}"
+              class="app-nav-item app-nav-item--gmcassist-primary{% if nav_gmcassist %} app-nav-item--active{% endif %}"
+              {% if nav_gmcassist %}aria-current="page"{% endif %}
+            >GMCAssist</a>
+          </li>
+          {% endif %}
+          <li class="app-nav-li">
+            <a
+              href="{{ url_for('scan') }}"
               class="app-nav-item{% if nav_scan %} app-nav-item--active{% endif %}"
               {% if nav_scan %}aria-current="page"{% endif %}
             >Scan</a>
@@ -54,18 +63,6 @@
               class="app-nav-item{% if nav_gold %} app-nav-item--active{% endif %}"
               {% if nav_gold %}aria-current="page"{% endif %}
             >Gold Registry</a>
-          </li>
-          {% if nav_service_enabled %}
-          <li class="app-nav-li">
-            <a
-              href="{{ url_for('services.index') }}"
-              class="app-nav-item{% if nav_services %} app-nav-item--active{% endif %}"
-              {% if nav_services %}aria-current="page"{% endif %}
-            >Services</a>
-          </li>
-          {% endif %}
-          <li class="app-nav-li">
-            <span class="app-nav-item app-nav-item--disabled" title="Coming soon">Deploy</span>
           </li>
         </ul>
       </div>

@@ -18,6 +18,7 @@ from core.text_diff import unified_diff_text
 from providers.exceptions import SshReadError
 from providers.factory import create_inventory_provider
 from services.authz import SERVICE_ROLE_NONCE_CONFIG_KEY
+from services.gmcassist_routes import gmcassist_bp
 from services.routes import services_bp
 
 app = Flask(__name__)
@@ -27,6 +28,7 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "opscore-dev-insecure-change
 app.config[SERVICE_ROLE_NONCE_CONFIG_KEY] = secrets.token_hex(16)
 
 app.register_blueprint(services_bp)
+app.register_blueprint(gmcassist_bp, url_prefix="/gmcassist")
 
 
 @app.context_processor
@@ -128,8 +130,8 @@ def _stash_scan_replay_from_query():
         }
 
 
-@app.route("/", methods=["GET", "POST"])
-def index():
+def _scan_index_response():
+    """Scan matrix page (shared by ``/`` when not redirecting and by ``/scan``)."""
     sources = load_sources()
     domains = load_domains()
     result = None
@@ -182,6 +184,26 @@ def index():
         result=result,
         matrix=matrix,
     )
+
+
+@app.route("/scan", methods=["GET", "POST"])
+def scan():
+    """Inventory scan UI; use this URL from navigation when ``/`` redirects to GMCAssist."""
+    return _scan_index_response()
+
+
+@app.route("/", methods=["GET", "POST"])
+def index():
+    # Default landing: GMCAssist catalog when services are enabled (Scan lives at /scan).
+    if request.method == "GET":
+        try:
+            s = load_settings()
+        except (OSError, ValueError, TypeError, KeyError):
+            s = {}
+        if s.get("service_enabled", True) and not session.get("scan_replay"):
+            return redirect(url_for("gmcassist.catalog"))
+
+    return _scan_index_response()
 
 
 @app.route("/compare")

@@ -1,19 +1,58 @@
 """
-MariaDB adapter (read-only first pass): guided input help and blueprint prefill against tLSF.
+MariaDB adapter for tLSF: reads for guided input / prefill; incremental writes.
 
-Writes (insert/delete) are not supported; callers that need apply/rollback should use
-``service_db_backend=json`` until write support is added.
+Write support: ``license_servers`` and ``resources_REF`` insert/delete by numeric primary key
+``ID`` only. Any other table raises ``ValueError``.
 """
 
 
 import os
 import re
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from services.adapters.db_base import DbAdapterBase
 
 _SAFE_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+# Writable in this step only; must match ``LICENSE_SERVER_KEYS`` in ``elim_db`` (no ID — DB auto-increment).
+_LICENSE_SERVERS_INSERT_COLUMNS = (
+    "application",
+    "site",
+    "licCollector_ID",
+    "company",
+    "licType",
+    "port",
+    "ready4MIP",
+    "licservers",
+    "features",
+)
+
+# Must match ``TABLE_*`` / column lists in ``elim_db`` (no ``ID`` in payload — DB auto-increment).
+_MARIADB_WRITE_TABLES = frozenset({"license_servers", "resources_REF"})
+
+# Same order as ``RESOURCE_REF_KEYS_BODY`` + ``license_server_ID`` in ``elim_db.build_resource_ref_row``.
+_RESOURCES_REF_INSERT_COLUMNS = (
+    "resource",
+    "description",
+    "resourcegroup_ID",
+    "active",
+    "useReason",
+    "useLS",
+    "wlDistLS",
+    "ls_alloc_buffer",
+    "skipSite2WAN",
+    "skipmodlicenses",
+    "res_type",
+    "res_increasing",
+    "res_interval",
+    "res_builtin",
+    "res_release",
+    "res_consumable",
+    "fixdyn",
+    "resusage_method",
+    "license_server_ID",
+)
 
 
 def _validate_ident(name: str, kind: str) -> str:
@@ -59,7 +98,7 @@ def _normalize_row(row: Dict[str, Any]) -> Dict[str, Any]:
 
 
 class MariaDbAdapter(DbAdapterBase):
-    """Read-only MariaDB access; connection parameters come from settings / environment."""
+    """MariaDB access: reads everywhere; narrow allowlisted writes for ELIM/LS tables."""
 
     def __init__(
         self,
@@ -307,16 +346,146 @@ class MariaDbAdapter(DbAdapterBase):
             return None
         return _normalize_row(dict(one))
 
-    def insert_row(self, table_name: str, row_dict: Dict[str, Any]) -> int:
+    def _reject_unsupported_write_table(self, table_name: str, operation: str) -> None:
         _validate_ident(table_name, "table_name")
-        raise ValueError(
-            "MariaDB adapter is read-only; database apply/insert requires "
-            "service_db_backend=json until write support is implemented."
-        )
+        if table_name not in _MARIADB_WRITE_TABLES:
+            raise ValueError(
+                "MariaDB %s is only implemented for tables %s; %r is not supported "
+                "(use service_db_backend=json for other tables)."
+                % (operation, ", ".join(sorted(_MARIADB_WRITE_TABLES)), table_name)
+            )
+
+    def _bind_license_servers_insert_values(
+        self, row_dict: Dict[str, Any]
+    ) -> Tuple[List[str], List[Any]]:
+        """Return (ordered column names, values) for parameterized INSERT."""
+        if not isinstance(row_dict, dict):
+            raise ValueError("row_dict must be a dict")
+        clean = dict(row_dict)
+        clean.pop("ID", None)
+        missing = [c for c in _LICENSE_SERVERS_INSERT_COLUMNS if c not in clean]
+        if missing:
+            raise ValueError(
+                "license_servers insert missing required columns: %s" % (", ".join(missing),)
+            )
+        extra = [k for k in clean if k not in _LICENSE_SERVERS_INSERT_COLUMNS]
+        if extra:
+            raise ValueError(
+                "license_servers insert has unknown columns (not inserted): %s"
+                % (", ".join(sorted(extra)),)
+            )
+        cols = list(_LICENSE_SERVERS_INSERT_COLUMNS)
+        values = [clean[c] for c in cols]
+        return cols, values
+
+    def _bind_resources_ref_insert_values(
+        self, row_dict: Dict[str, Any]
+    ) -> Tuple[List[str], List[Any]]:
+        """Return (ordered column names, values) for parameterized INSERT."""
+        if not isinstance(row_dict, dict):
+            raise ValueError("row_dict must be a dict")
+        clean = dict(row_dict)
+        clean.pop("ID", None)
+        missing = [c for c in _RESOURCES_REF_INSERT_COLUMNS if c not in clean]
+        if missing:
+            raise ValueError(
+                "resources_REF insert missing required columns: %s" % (", ".join(missing),)
+            )
+        extra = [k for k in clean if k not in _RESOURCES_REF_INSERT_COLUMNS]
+        if extra:
+            raise ValueError(
+                "resources_REF insert has unknown columns (not inserted): %s"
+                % (", ".join(sorted(extra)),)
+            )
+        cols = list(_RESOURCES_REF_INSERT_COLUMNS)
+        values = [clean[c] for c in cols]
+        return cols, values
+
+    def insert_row(self, table_name: str, row_dict: Dict[str, Any]) -> int:
+        """
+        Insert one row; return new primary key.
+
+        Assumes the table has an auto-increment (or equivalent) integer primary key column
+        named ``ID`` so ``cursor.lastrowid`` is meaningful.
+        """
+        self._reject_unsupported_write_table(table_name, "insert_row")
+        try:
+            from pymysql.err import Error as PyMySQLError
+        except ImportError as e:
+            raise ImportError(
+                "pymysql is required for service_db_backend=mariadb. "
+                "Install with: pip install pymysql"
+            ) from e
+
+        if table_name == "license_servers":
+            cols, values = self._bind_license_servers_insert_values(row_dict)
+        elif table_name == "resources_REF":
+            cols, values = self._bind_resources_ref_insert_values(row_dict)
+        else:
+            raise ValueError(
+                "MariaDB insert_row: table %r has no column binding (adapter bug)."
+                % (table_name,)
+            )
+
+        tq = _quote_ident(table_name, "table_name")
+        col_sql = ", ".join(_quote_ident(c, "column") for c in cols)
+        placeholders = ", ".join(["%s"] * len(cols))
+        sql = "INSERT INTO %s (%s) VALUES (%s)" % (tq, col_sql, placeholders)
+
+        conn = self._connect()
+        try:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(sql, tuple(values))
+                    new_id = int(cur.lastrowid)
+            except PyMySQLError as e:
+                raise ValueError(
+                    "MariaDB insert into %s failed: %s" % (table_name, e)
+                ) from e
+        finally:
+            conn.close()
+
+        if new_id <= 0:
+            raise ValueError(
+                "MariaDB insert into %s returned no auto-increment ID (lastrowid=%s); "
+                "confirm table uses an integer AUTO_INCREMENT primary key named ID."
+                % (table_name, new_id)
+            )
+        return new_id
 
     def delete_row_by_id(self, table_name: str, row_id: int) -> bool:
-        _validate_ident(table_name, "table_name")
-        raise ValueError(
-            "MariaDB adapter is read-only; database rollback/delete requires "
-            "service_db_backend=json until write support is implemented."
-        )
+        """Delete by ``ID`` column; allowlisted tables only."""
+        self._reject_unsupported_write_table(table_name, "delete_row_by_id")
+        try:
+            target = int(row_id)
+        except (TypeError, ValueError):
+            return False
+        if target <= 0:
+            return False
+
+        try:
+            from pymysql.err import Error as PyMySQLError
+        except ImportError as e:
+            raise ImportError(
+                "pymysql is required for service_db_backend=mariadb. "
+                "Install with: pip install pymysql"
+            ) from e
+
+        tq = _quote_ident(table_name, "table_name")
+        idq = _quote_ident("ID", "column_name")
+        sql = "DELETE FROM %s WHERE %s = %%s LIMIT 1" % (tq, idq)
+
+        conn = self._connect()
+        try:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(sql, (target,))
+                    affected = int(cur.rowcount)
+            except PyMySQLError as e:
+                raise ValueError(
+                    "MariaDB delete from %s failed: %s" % (table_name, e)
+                ) from e
+        finally:
+            conn.close()
+
+        return affected > 0

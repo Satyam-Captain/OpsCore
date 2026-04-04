@@ -236,6 +236,7 @@
           {% if f.placeholder %}placeholder="{{ f.placeholder }}"{% endif %}>
         {% if f.help_mode %}
         <button type="button" class="btn services-help-btn" data-help-target="help-tw-{{ f.key }}"
+          data-field-key="{{ f.key }}"
           data-help-url="{{ url_for('services.operation_field_help', operation_id=operation.operation_id, field_key=f.key) }}">Help</button>
         {% endif %}
       </div>

@@ -52,23 +52,35 @@ def normalize_generation_cluster(raw: Any) -> Optional[str]:
     return s
 
 
+def _script_backend_gmc(settings: Dict[str, Any]) -> bool:
+    return str(settings.get("service_script_backend", "mock") or "").strip().lower() == "gmc"
+
+
 def current_config_path(
     settings: Dict[str, Any], cluster: str, config_type: str
 ) -> str:
-    """``data/sandbox/current/<cluster>/<config_type>`` (filename = config type string)."""
+    """Sandbox current file, or GMC OUTPUT baseline when ``service_script_backend`` is ``gmc``."""
     c = normalize_generation_cluster(cluster)
     if not c or config_type not in ALL_MOCK_CONFIG_TYPES:
         raise ValueError("invalid cluster or config type")
+    if _script_backend_gmc(settings):
+        from services.adapters.scripts_gmc import GmcScriptsAdapter
+
+        return GmcScriptsAdapter.from_settings(settings).current_config_path(config_type, c)
     return os.path.join(sandbox_abs(settings), "current", c, config_type)
 
 
 def generated_config_path(
     settings: Dict[str, Any], cluster: str, config_type: str
 ) -> str:
-    """``data/sandbox/generated/<cluster>/<config_type>.new``"""
+    """Sandbox ``*.new`` path; for ``gmc``, OUTPUT dir path preferring ``*.new`` then ``*.test`` if present."""
     c = normalize_generation_cluster(cluster)
     if not c or config_type not in ALL_MOCK_CONFIG_TYPES:
         raise ValueError("invalid cluster or config type")
+    if _script_backend_gmc(settings):
+        from services.adapters.scripts_gmc import GmcScriptsAdapter
+
+        return GmcScriptsAdapter.from_settings(settings).generated_config_path(config_type, c)
     return os.path.join(sandbox_abs(settings), "generated", c, f"{config_type}.new")
 
 

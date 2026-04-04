@@ -1,0 +1,334 @@
+{% extends "gmcassist/base_gmcassist.html" %}
+{% block title %}GMCAssist · {{ step_def.title or 'Step' }}{% endblock %}
+{% set st = step_def.type %}
+{% block content %}
+{% set wx = gmcassist_extras if gmcassist_extras is defined else {} %}
+{% set fd = form_display_inputs if form_display_inputs is defined else service_inputs %}
+<section class="card gmcassist-wizard">
+  <div class="gmcassist-wizard-summary" role="status">
+    <div class="gmcassist-wizard-summary-row gmcassist-wizard-summary-row--primary">
+      <span class="gmcassist-wizard-service"><strong>Service:</strong> {{ service_label }}</span>
+      <span class="gmcassist-wizard-req"><strong>Request:</strong> {% if request_number %}{{ request_number }}{% else %}—{% endif %}</span>
+      <span class="gmcassist-wizard-stepcount">Step {{ step_display }} of {{ step_total }}</span>
+    </div>
+    <div class="gmcassist-wizard-progress-bar" aria-hidden="true">
+      <div class="gmcassist-wizard-progress-fill" style="width: {{ (step_display * 100.0 / step_total) | round(1) }}%;"></div>
+    </div>
+    <div class="gmcassist-wizard-titles">
+      <div class="gmcassist-wizard-current"><strong>Now:</strong> {{ step_def.title or step_def.id }}</div>
+      {% if next_step_title %}
+        <div class="text-muted gmcassist-wizard-next"><strong>Next:</strong> {{ next_step_title }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <h2 class="gmcassist-step-focus">{{ step_def.title or step_def.id }}</h2>
+
+  {% if st == 'request_check' %}
+    <p class="text-muted">Enter the ITSM request number. On the next step you will enter the cluster list once for this entire run.</p>
+    <form method="post" class="stack-form">
+      <div class="form-field">
+        <label for="request_number">Request number</label>
+        <input type="text" id="request_number" name="request_number" value="{{ request_number }}" required autocomplete="off" />
+      </div>
+      <div class="form-actions">
+        <button type="submit" name="action" value="next" class="btn btn-primary">Next</button>
+      </div>
+    </form>
+  {% elif st == 'cluster_selection' %}
+    <p class="text-muted">Enter every cluster for this request. The same list is used for all config types in this wizard (each config runs generate → diff → publish per cluster, in order).</p>
+    <form method="post" class="stack-form">
+      <div class="form-field">
+        <label for="wizard_cluster_list">Clusters for this run</label>
+        <textarea id="wizard_cluster_list" name="wizard_cluster_list" rows="4" class="gmcassist-cluster-textarea" autocomplete="off" placeholder="Comma-separated or one cluster per line">{{ wx.get('wizard_cluster_list_text', '') }}</textarea>
+        <span class="text-muted small">You will not be asked to enter clusters again on later config steps.</span>
+      </div>
+      <div class="form-actions gmcassist-wizard-nav">
+        {% if prev_step_title %}
+          <button type="submit" name="action" value="back" class="btn btn-secondary">Back</button>
+        {% endif %}
+        <button type="submit" name="action" value="next" class="btn btn-primary">Next</button>
+      </div>
+    </form>
+  {% elif st == 'form' %}
+    {% if not fields %}
+      <p class="text-muted">No guided fields for this form group in the service definition.</p>
+    {% endif %}
+    <form method="post" class="stack-form gmcassist-wizard-form">
+      {% for f in fields %}
+        <div class="form-field services-input-row gmcassist-wizard-field">
+          <label for="si_{{ f.key }}">{{ f.label or f.key }}</label>
+          <div class="services-input-controls">
+            <input
+              type="{{ f.type or 'text' }}"
+              id="si_{{ f.key }}"
+              name="si_{{ f.key }}"
+              value="{{ fd.get(f.key, '') }}"
+              placeholder="{{ f.placeholder or '' }}"
+              autocomplete="off"
+            />
+            <button
+              type="button"
+              class="btn services-help-btn"
+              data-help-target="help-gmc-{{ f.key }}"
+              data-field-key="{{ f.key }}"
+              data-help-url="{{ url_for('gmcassist.service_field_help', service_id=run.service_id, field_key=f.key) }}"
+            >Help</button>
+          </div>
+          <div class="field-help-out" id="help-gmc-{{ f.key }}" style="display:none" data-open="0" aria-live="polite"></div>
+        </div>
+      {% endfor %}
+      <div class="form-actions gmcassist-wizard-nav">
+        {% if prev_step_title %}
+          <button type="submit" name="action" value="back" class="btn btn-secondary">Back</button>
+        {% endif %}
+        <button type="submit" name="action" value="next" class="btn btn-primary">Next</button>
+      </div>
+    </form>
+  {% elif st == 'confirm' %}
+    {% if confirm_errors %}
+      <div class="alert alert-error" role="alert">
+        {% for e in confirm_errors %}<div>{{ e }}</div>{% endfor %}
+      </div>
+      <form method="post" class="gmcassist-wizard-nav">
+        <button type="submit" name="action" value="back" class="btn btn-secondary">Back</button>
+      </form>
+    {% else %}
+      <p class="text-muted">Review the insert preview below, then continue or go back to edit.</p>
+      {% if ls_preview %}
+        <h3 class="gmcassist-subhead">license_servers</h3>
+        {% if ls_sql_preview %}
+          <pre class="operation-pre gmcassist-sql-preview">{{ ls_sql_preview }}</pre>
+        {% endif %}
+        <details class="gmcassist-json-details">
+          <summary>Row as JSON</summary>
+          <pre class="operation-pre gmcassist-pre-tight">{{ ls_preview | tojson(indent=2) }}</pre>
+        </details>
+      {% endif %}
+      {% if rr_preview %}
+        <h3 class="gmcassist-subhead">resources_REF</h3>
+        {% if rr_sql_preview %}
+          <pre class="operation-pre gmcassist-sql-preview">{{ rr_sql_preview }}</pre>
+        {% endif %}
+        <details class="gmcassist-json-details">
+          <summary>Row as JSON</summary>
+          <pre class="operation-pre gmcassist-pre-tight">{{ rr_preview | tojson(indent=2) }}</pre>
+        </details>
+      {% endif %}
+      <form method="post" class="form-actions gmcassist-wizard-nav">
+        <button type="submit" name="action" value="back" class="btn btn-secondary">Back</button>
+        <button type="submit" name="action" value="next" class="btn btn-primary">Next</button>
+      </form>
+    {% endif %}
+  {% elif st == 'db_insert' %}
+    <p class="text-muted">Review the insert preview, then apply to the configured database (same adapters as the legacy workspace).</p>
+    {% if insert_sql_preview %}
+      <h3 class="gmcassist-subhead">SQL preview (read-only)</h3>
+      <pre class="operation-pre gmcassist-sql-preview">{{ insert_sql_preview }}</pre>
+    {% endif %}
+    {% if insert_ls_preview %}
+      <h3 class="gmcassist-subhead">license_servers</h3>
+      <details class="gmcassist-json-details">
+        <summary>Row as JSON</summary>
+        <pre class="operation-pre gmcassist-pre-tight">{{ insert_ls_preview | tojson(indent=2) }}</pre>
+      </details>
+    {% endif %}
+    {% if insert_rr_preview %}
+      <h3 class="gmcassist-subhead">resources_REF</h3>
+      <details class="gmcassist-json-details">
+        <summary>Row as JSON</summary>
+        <pre class="operation-pre gmcassist-pre-tight">{{ insert_rr_preview | tojson(indent=2) }}</pre>
+      </details>
+    {% endif %}
+    {% if not insert_ls_preview and not insert_rr_preview %}
+      <div class="alert alert-error">Nothing to preview — check previous steps.</div>
+    {% endif %}
+    <form method="post" class="form-actions gmcassist-wizard-nav">
+      <button type="submit" name="action" value="back" class="btn btn-secondary">Back</button>
+      <button type="submit" name="action" value="next" class="btn btn-primary">Apply insert</button>
+    </form>
+  {% elif st == 'generate' %}
+    <p class="text-muted">Config: <code>{{ wx.get('config_type', '') }}</code> — using the cluster list from the Clusters step.</p>
+    {% if wx.get('config_policy_error') %}
+      <div class="alert alert-error" role="alert">{{ wx.get('config_policy_error') }}</div>
+    {% endif %}
+    <form method="post" class="stack-form">
+      {% if wx.get('cluster_queue_label') %}
+        <p class="text-muted gmcassist-cluster-queue-status"><strong>{{ wx.get('cluster_queue_label') }}</strong></p>
+      {% endif %}
+      {% if wx.get('last_generate') %}
+        <p class="text-muted small">Last result for this step:</p>
+        <pre class="operation-pre gmcassist-pre-tight">{{ wx.get('last_generate') | tojson(indent=2) }}</pre>
+      {% endif %}
+      <div class="form-actions gmcassist-wizard-nav">
+        {% if prev_step_title %}
+          <button type="submit" name="action" value="back" class="btn btn-secondary">Back</button>
+        {% endif %}
+        <button type="submit" name="action" value="generate" class="btn btn-primary" {% if wx.get('config_policy_error') %}disabled{% endif %}>Generate</button>
+      </div>
+    </form>
+  {% elif st == 'diff' %}
+    {% if wx.get('diff_error') %}
+      <div class="alert alert-error" role="alert">{{ wx.get('diff_error') }}</div>
+    {% else %}
+      <p class="text-muted">Review <strong>{{ wx.get('diff_config_type', '') }}</strong> for cluster <code>{{ wx.get('diff_cluster', '') }}</code>.</p>
+      <p class="text-muted small">Current: <code>{{ wx.get('diff_current_path', '') }}</code></p>
+      <p class="text-muted small">Generated: <code>{{ wx.get('diff_generated_path', '') }}</code></p>
+      {% if wx.get('diff_current_missing') %}
+        <p class="alert alert-error gmcassist-diff-missing-banner" role="status">No current file on disk at the expected path (left column will be empty).</p>
+      {% endif %}
+      {% if wx.get('diff_side_by_side_rows') %}
+        {% if wx.get('diff_side_by_side_truncated') %}
+          <p class="text-muted small">Side-by-side view truncated for size; open unified diff below for full text.</p>
+        {% endif %}
+        <div class="gmcassist-diff-sbs-wrap">
+          <table class="gmcassist-diff-sbs" aria-label="Side by side diff">
+            <thead>
+              <tr>
+                <th scope="col">Current ({{ wx.get('diff_cluster', '') }})</th>
+                <th scope="col">Generated ({{ wx.get('diff_cluster', '') }})</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in wx.get('diff_side_by_side_rows') %}
+                <tr class="gmcassist-diff-row gmcassist-diff-row--{{ row.kind }}">
+                  <td class="gmcassist-diff-cell gmcassist-diff-cell--left"><pre>{{ row.left }}</pre></td>
+                  <td class="gmcassist-diff-cell gmcassist-diff-cell--right"><pre>{{ row.right }}</pre></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <details class="gmcassist-json-details">
+          <summary>Unified diff (text)</summary>
+          <pre class="operation-pre gmcassist-diff-pre">{{ wx.get('diff_text', '') }}</pre>
+        </details>
+      {% else %}
+        <pre class="operation-pre gmcassist-diff-pre">{{ wx.get('diff_text', '') }}</pre>
+      {% endif %}
+    {% endif %}
+    <form method="post" class="form-actions gmcassist-wizard-nav">
+      {% if prev_step_title %}
+        <button type="submit" name="action" value="back" class="btn btn-secondary">Back</button>
+      {% endif %}
+      {% if not wx.get('diff_error') %}
+        <button type="submit" name="action" value="next" class="btn btn-primary">Continue</button>
+      {% endif %}
+    </form>
+  {% elif st == 'publish' %}
+    {% if wx.get('publish_error') %}
+      <div class="alert alert-error" role="alert">{{ wx.get('publish_error') }}</div>
+    {% else %}
+      <p class="text-muted">Publish <code>{{ wx.get('publish_config_type', '') }}</code> into the request directory.</p>
+      {% if wx.get('publish_cluster_queue_label') %}
+        <p class="text-muted gmcassist-cluster-queue-status"><strong>{{ wx.get('publish_cluster_queue_label') }}</strong></p>
+      {% endif %}
+    {% endif %}
+    <form method="post" class="form-actions gmcassist-wizard-nav">
+      {% if wx.get('publish_generated_path') %}
+        <p class="text-muted small">Generated file: <code>{{ wx.get('publish_generated_path', '') }}</code></p>
+      {% endif %}
+      {% if prev_step_title %}
+        <button type="submit" name="action" value="back" class="btn btn-secondary">Back</button>
+      {% endif %}
+      <button type="submit" name="action" value="publish" class="btn btn-primary">Publish</button>
+    </form>
+  {% elif st == 'finalize_check' %}
+    {% if wx.get('finalize_error') %}
+      <div class="alert alert-error" role="alert">{{ wx.get('finalize_error') }}</div>
+    {% else %}
+      <p class="text-muted gmcassist-finalize-lead">{{ wx.get('finalize_message', '') }}</p>
+      {% if wx.get('finalize_bullets') %}
+        <ul class="gmcassist-finalize-list text-muted">
+          {% for line in wx.get('finalize_bullets') or [] %}
+            <li>{{ line }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      <p class="gmcassist-status-label">Status</p>
+      <p>
+        {% if wx.get('finalize_has_marker') %}
+          <span class="gmcassist-status-pill gmcassist-status-pill--ok">.finalized is present</span>
+        {% else %}
+          <span class="gmcassist-status-pill gmcassist-status-pill--pending">.finalized is not present</span>
+        {% endif %}
+      </p>
+      {% if wx.get('finalize_marker_path') %}
+        <p class="text-muted small">Checked path: <code>{{ wx.get('finalize_marker_path', '') }}</code></p>
+      {% endif %}
+    {% endif %}
+    <form method="post" class="form-actions gmcassist-wizard-nav">
+      {% if prev_step_title %}
+        <button type="submit" name="action" value="back" class="btn btn-secondary">Back</button>
+      {% endif %}
+      <button type="submit" name="action" value="next" class="btn btn-primary">Continue</button>
+    </form>
+  {% elif st == 'handoff' %}
+    <p class="text-muted">Next steps on the grid (adjust flags or paths to match your site).</p>
+    {% if wx.get('handoff_request') %}
+      <p class="text-muted small">Request <code>{{ wx.get('handoff_request', '') }}</code></p>
+    {% endif %}
+    {% for h in wx.get('handoff_clusters') or [] %}
+      <div class="gmcassist-handoff-panel">
+        <div class="gmcassist-handoff-panel-label">Cluster: {{ h.cluster }}</div>
+        <ol class="gmcassist-handoff-steps">
+          <li>Go to cluster <strong>{{ h.cluster }}</strong>.</li>
+          <li>Run this command:</li>
+        </ol>
+        <pre class="gmcassist-handoff-command" id="gmcassist-handoff-cmd-{{ loop.index }}">{{ h.command }}</pre>
+        <button type="button" class="btn btn-secondary gmcassist-handoff-copy" data-copy-target="gmcassist-handoff-cmd-{{ loop.index }}">Copy command</button>
+      </div>
+    {% endfor %}
+    {% if wx.get('handoff_restart_note') %}
+      <p class="text-muted small gmcassist-handoff-restart">{{ wx.get('handoff_restart_note') }}</p>
+    {% endif %}
+    <form method="post" class="form-actions gmcassist-wizard-nav">
+      {% if prev_step_title %}
+        <button type="submit" name="action" value="back" class="btn btn-secondary">Back</button>
+      {% endif %}
+      <button type="submit" name="action" value="next" class="btn btn-primary">Continue</button>
+    </form>
+  {% elif st == 'manual_note' %}
+    <p class="text-muted">{{ wx.get('manual_note_text', '') }}</p>
+    <form method="post" class="form-actions gmcassist-wizard-nav">
+      {% if prev_step_title %}
+        <button type="submit" name="action" value="back" class="btn btn-secondary">Back</button>
+      {% endif %}
+      <button type="submit" name="action" value="next" class="btn btn-primary">Finish</button>
+    </form>
+  {% else %}
+    <p class="text-muted">Unsupported step type: {{ st }}</p>
+  {% endif %}
+</section>
+<script>
+(function () {
+  function copyFromId(id) {
+    var el = id ? document.getElementById(id) : null;
+    if (!el) return;
+    var text = el.textContent || '';
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text.trim());
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = text.trim();
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+  }
+  document.querySelectorAll('.gmcassist-handoff-copy').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var id = btn.getAttribute('data-copy-target');
+      copyFromId(id);
+    });
+  });
+})();
+</script>
+{% endblock %}
+
+{% block scripts %}
+{% if st == 'form' %}
+<script src="{{ url_for('static', filename='services_inputs.js') }}" defer></script>
+{% endif %}
+{% endblock %}

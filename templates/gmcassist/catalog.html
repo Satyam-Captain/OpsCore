@@ -1,0 +1,29 @@
+{% extends "gmcassist/base_gmcassist.html" %}
+{% block title %}GMCAssist · Services{% endblock %}
+{% block content %}
+<section class="card gmcassist-catalog">
+  <h1 class="page-title">GMCAssist</h1>
+  <p class="text-muted gmcassist-catalog-lead"><strong>Primary operator entry:</strong> pick a flow below. Each wizard saves progress as JSON on this workstation.</p>
+  {% if not wizards %}
+    <p class="text-muted">No wizard definitions found under <code>services/wizard_defs</code>.</p>
+  {% else %}
+    <ul class="gmcassist-catalog-grid">
+      {% for w in wizards %}
+        <li class="gmcassist-catalog-card">
+          <div class="gmcassist-catalog-card-body">
+            <h2 class="gmcassist-catalog-card-title">{{ w.label }}</h2>
+            {% if w.catalog_summary %}
+              <p class="gmcassist-catalog-card-summary">{{ w.catalog_summary }}</p>
+            {% elif w.description %}
+              <p class="gmcassist-catalog-card-summary">{{ w.description }}</p>
+            {% endif %}
+          </div>
+          <form method="post" action="{{ url_for('gmcassist.wizard_start', wizard_id=w.wizard_id) }}" class="gmcassist-catalog-card-action">
+            <button type="submit" class="btn btn-primary">Start</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</section>
+{% endblock %}

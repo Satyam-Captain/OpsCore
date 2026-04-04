@@ -204,6 +204,25 @@ a.app-nav-item:hover {
   user-select: none;
 }
 
+a.app-nav-item--gmcassist-primary {
+  color: var(--color-primary-dark);
+  font-weight: 700;
+}
+
+a.app-nav-item--gmcassist-primary:not(.app-nav-item--active):hover {
+  color: var(--color-primary);
+}
+
+a.app-nav-item--legacy-workspace {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+
+a.app-nav-item--legacy-workspace:not(.app-nav-item--active):hover {
+  color: var(--color-text);
+}
+
 .layout-main {
   padding: 1.5rem 0 3.5rem;
 }
@@ -1104,6 +1123,414 @@ tr.line-modified td.diff-sbs-right {
 .services-ops-table th {
   background: var(--color-surface-inner);
   font-weight: 600;
+}
+
+/* GMCAssist wizard (additive) */
+.text-muted {
+  color: var(--color-muted);
+}
+
+.small {
+  font-size: 0.9rem;
+}
+
+.gmcassist-catalog-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+}
+
+.gmcassist-catalog-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.gmcassist-catalog-item:last-child {
+  border-bottom: none;
+}
+
+.gmcassist-inline-form {
+  margin: 0;
+}
+
+.gmcassist-wizard-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.92rem;
+}
+
+.gmcassist-wizard-stepcount {
+  font-weight: 600;
+  color: var(--color-primary-dark);
+}
+
+.gmcassist-wizard-progress-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-border);
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+}
+
+.gmcassist-wizard-progress-fill {
+  height: 100%;
+  background: var(--color-primary);
+  transition: width 0.2s ease;
+}
+
+.gmcassist-wizard-titles {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.95rem;
+}
+
+.gmcassist-wizard-nav {
+  margin-top: 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.stack-form .form-field {
+  margin-bottom: 1rem;
+}
+
+.stack-form label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.stack-form input[type="text"],
+.stack-form input[type="number"] {
+  width: 100%;
+  max-width: 28rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  font-family: inherit;
+}
+
+.form-actions {
+  margin-top: 0.5rem;
+}
+
+.gmcassist-diff-pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 28rem;
+  overflow: auto;
+  font-size: 0.82rem;
+}
+
+.gmcassist-pre-tight {
+  font-size: 0.82rem;
+  max-height: 10rem;
+  overflow: auto;
+}
+
+.gmcassist-handoff-cmd {
+  font-size: 0.95rem;
+}
+
+.gmcassist-catalog-lead {
+  max-width: 40rem;
+  margin-bottom: 1.25rem;
+}
+
+.gmcassist-catalog-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+}
+
+.gmcassist-catalog-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.15rem 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+  box-shadow: var(--shadow-sm);
+}
+
+.gmcassist-catalog-card-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.gmcassist-catalog-card-summary {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--color-muted);
+}
+
+.gmcassist-catalog-card-action {
+  margin: 0;
+}
+
+.gmcassist-wizard-summary {
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.gmcassist-wizard-summary-row--primary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 1.25rem;
+  margin-bottom: 0.65rem;
+  font-size: 0.92rem;
+}
+
+.gmcassist-wizard-service,
+.gmcassist-wizard-req {
+  color: var(--color-text);
+}
+
+.gmcassist-wizard-summary .gmcassist-wizard-stepcount {
+  margin-left: auto;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.gmcassist-wizard-current {
+  font-size: 0.98rem;
+}
+
+.gmcassist-wizard-next {
+  font-size: 0.92rem;
+}
+
+.gmcassist-step-focus {
+  margin: 0 0 1rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.gmcassist-subhead {
+  margin: 1rem 0 0.4rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+.gmcassist-finalize-lead {
+  margin-bottom: 0.5rem;
+}
+
+.gmcassist-finalize-list {
+  margin: 0 0 1rem 1.1rem;
+  padding: 0;
+  max-width: 42rem;
+  line-height: 1.5;
+}
+
+.gmcassist-status-label {
+  margin: 0.75rem 0 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted);
+}
+
+.gmcassist-status-pill {
+  display: inline-block;
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.gmcassist-status-pill--ok {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.gmcassist-status-pill--pending {
+  background: var(--color-primary-bg);
+  color: var(--color-primary-dark);
+  border: 1px solid var(--color-primary-soft);
+}
+
+.gmcassist-handoff-panel {
+  margin: 0.75rem 0 1rem;
+  padding: 1rem 1.15rem;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-inner);
+  max-width: 42rem;
+}
+
+.gmcassist-handoff-panel-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-muted);
+  margin-bottom: 0.5rem;
+}
+
+.gmcassist-handoff-command {
+  margin: 0 0 0.75rem;
+  padding: 0.75rem 0.85rem;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.gmcassist-handoff-copy {
+  font-size: 0.85rem;
+}
+
+.gmcassist-sql-preview {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.gmcassist-json-details {
+  margin-top: 0.5rem;
+  font-size: 0.88rem;
+}
+
+.gmcassist-json-details summary {
+  cursor: pointer;
+  color: var(--color-muted);
+}
+
+.gmcassist-cluster-textarea {
+  width: 100%;
+  max-width: 32rem;
+  min-height: 4.5rem;
+  padding: 0.5rem 0.6rem;
+  font-family: inherit;
+  font-size: 0.92rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.gmcassist-cluster-queue-status {
+  margin: 0 0 0.75rem;
+}
+
+.gmcassist-diff-missing-banner {
+  margin: 0.5rem 0 0.75rem;
+}
+
+.gmcassist-diff-sbs-wrap {
+  margin: 0.75rem 0;
+  max-height: 28rem;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.gmcassist-diff-sbs {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+}
+
+.gmcassist-diff-sbs th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-surface-inner);
+  border-bottom: 2px solid var(--color-border);
+  padding: 0.45rem 0.5rem;
+  text-align: left;
+  width: 50%;
+}
+
+.gmcassist-diff-cell {
+  vertical-align: top;
+  width: 50%;
+  padding: 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.gmcassist-diff-cell pre {
+  margin: 0;
+  padding: 0.2rem 0.45rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.gmcassist-diff-row--same .gmcassist-diff-cell {
+  background: var(--color-card);
+}
+
+.gmcassist-diff-row--added .gmcassist-diff-cell--right {
+  background: #dcfce7;
+}
+
+.gmcassist-diff-row--removed .gmcassist-diff-cell--left {
+  background: #fee2e2;
+}
+
+.gmcassist-diff-row--modified .gmcassist-diff-cell--left {
+  background: #fef3c7;
+}
+
+.gmcassist-diff-row--modified .gmcassist-diff-cell--right {
+  background: #dbeafe;
+}
+
+.help-click-hint {
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+}
+
+.help-value-item:hover {
+  text-decoration: underline;
+}
+
+.help-lookup-row:hover {
+  background: var(--color-row-alt);
+}
+
+.gmcassist-handoff-steps {
+  margin: 0 0 0.5rem 1.25rem;
+  padding: 0;
+  color: var(--color-text);
+  font-size: 0.92rem;
+}
+
+.gmcassist-handoff-restart {
+  margin-top: 1rem;
 }
 
 @media (max-width: 768px) {
