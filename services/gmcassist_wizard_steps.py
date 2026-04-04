@@ -20,7 +20,11 @@ from services.elim_lsb import (
     normalize_generation_cluster,
     read_text_file,
 )
-from services.wizard_run_store import update_wizard_run
+from services.gmcassist_cluster_resources import (
+    pending_cluster_resources_from_run,
+    wizard_def_includes_cluster_resources,
+)
+from services.wizard_run_store import build_step_advance_updates, update_wizard_run
 
 
 def ensure_wizard_context(run: Dict[str, Any]) -> Dict[str, Any]:
@@ -43,6 +47,8 @@ def ensure_wizard_context(run: Dict[str, Any]) -> Dict[str, Any]:
         ctx["cluster_queue_index"] = {}
     if "published_clusters_log" not in ctx:
         ctx["published_clusters_log"] = []
+    if "cluster_resource_row_ids" not in ctx:
+        ctx["cluster_resource_row_ids"] = []
     return ctx
 
 
@@ -140,6 +146,38 @@ def get_cluster_selection_extras(run: Dict[str, Any]) -> Dict[str, Any]:
     return {"wizard_cluster_list_text": text}
 
 
+def get_cluster_resources_form_extras(run: Dict[str, Any]) -> Dict[str, Any]:
+    """Rows for repeatable cluster_resources form; resource_ID display from context."""
+    ctx = ensure_wizard_context(run)
+    rid = ctx.get("resource_id")
+    rows = pending_cluster_resources_from_run(run)
+    if not rows:
+        rows = [{"cluster_ID": "", "resource_value": ""}]
+    return {
+        "cluster_resources_rows": rows,
+        "cluster_resources_resource_id": rid,
+        "cluster_resources_help_clusters_url": url_for("gmcassist.help_cluster_resources_clusters"),
+        "cluster_resources_help_values_url": url_for(
+            "gmcassist.help_cluster_resources_values"
+        ),
+    }
+
+
+def get_cluster_resources_apply_extras(
+    settings: Dict[str, Any], run: Dict[str, Any]
+) -> Dict[str, Any]:
+    from services.gmcassist_sql_preview import format_insert_preview
+
+    pending = pending_cluster_resources_from_run(run)
+    previews = []
+    for row in pending:
+        previews.append(format_insert_preview("cluster_resources", row))
+    return {
+        "cluster_resources_pending": pending,
+        "cluster_resources_sql_previews": previews,
+    }
+
+
 def _config_policy_error(wizard_def: Dict[str, Any], config_type: str) -> str:
     ok, msg = config_type_allowed_for_wizard(wizard_def, config_type)
     return "" if ok else msg
@@ -224,6 +262,15 @@ def post_generate(
         flash(pol_err, "error")
         return redirect(url_for("gmcassist.wizard_run", run_id=run_id))
 
+    if ct == "lsf.cluster" and wizard_def_includes_cluster_resources(wizard_def):
+        cr_ids = ctx.get("cluster_resource_row_ids")
+        if not isinstance(cr_ids, list) or len(cr_ids) == 0:
+            flash(
+                "Apply cluster_resources (previous wizard steps) before generating lsf.cluster.",
+                "error",
+            )
+            return redirect(url_for("gmcassist.wizard_run", run_id=run_id))
+
     scripts = _scripts_adapter(settings)
     gctx = _generation_ctx_payload(run, nc)
     try:
@@ -244,15 +291,20 @@ def post_generate(
         "generated_path": out_path,
         "status": "done",
     }
-    update_wizard_run(
-        settings,
-        run_id,
+    steps_list = wizard_def.get("steps")
+    steps_len = len(steps_list) if isinstance(steps_list, list) else 0
+    adv = build_step_advance_updates(
+        idx,
+        steps_len,
         {
             "context": ctx,
             "step_data": run.get("step_data"),
-            "current_step_index": idx + 1,
         },
     )
+    update_wizard_run(settings, run_id, adv)
+    if steps_len > 0 and int(adv["current_step_index"]) >= steps_len:
+        flash("Generated %s for cluster %s. Wizard completed." % (ct, nc), "ok")
+        return redirect(url_for("gmcassist.catalog"))
     flash("Generated %s for cluster %s." % (ct, nc), "ok")
     return redirect(url_for("gmcassist.wizard_run", run_id=run_id))
 
@@ -521,17 +573,21 @@ def get_finalize_check_extras(settings: Dict[str, Any], run: Dict[str, Any]) -> 
             marker_path = finalized_marker_path(settings, rn)
         except ValueError as e:
             err = str(e)
+    req_for_cmd = rn if rn else "<REQ-ID>"
+    deploy_cmd = (
+        "Run in respective cluster: /opt/lsf10/scripts/DeployLSFConfig.sh %s" % req_for_cmd
+    )
     return {
         "finalize_error": err,
         "finalize_has_marker": has_marker,
         "finalize_marker_path": marker_path,
         "finalize_message": (
-            "This step is read-only: it only checks whether the request directory contains a "
-            ".finalized marker file."
+            "RUN finalize from Grid Page. This step is read-only: it only checks whether the "
+            "request directory contains a .finalized marker file."
         ),
         "finalize_bullets": [
             "GMCAssist does not perform finalize — it never creates or removes the .finalized marker.",
-            "Run finalize in GMC / Grid (or your site procedure) outside this tool.",
+            deploy_cmd,
             "The status below shows only whether that marker file exists on the configured request path.",
         ],
     }
@@ -558,7 +614,8 @@ def post_finalize_check(
 def get_handoff_extras(run: Dict[str, Any]) -> Dict[str, Any]:
     ctx = ensure_wizard_context(run)
     rn = str(run.get("request_number") or "").strip()
-    req_disp = rn or "<REQNO>"
+    req_arg = rn if rn else "<REQ-ID>"
+    deploy_cmd = "/opt/lsf10/scripts/DeployLSFConfig.sh %s" % req_arg
     pcl = ctx.get("published_clusters_log")
     items: List[Dict[str, str]] = []
     seen = set()
@@ -572,7 +629,7 @@ def get_handoff_extras(run: Dict[str, Any]) -> Dict[str, Any]:
                 items.append(
                     {
                         "cluster": cl,
-                        "command": "bsub.gmcreq -m PUT -r %s -c %s -nu" % (req_disp, cl),
+                        "command": deploy_cmd,
                     }
                 )
     if not items:
@@ -581,7 +638,7 @@ def get_handoff_extras(run: Dict[str, Any]) -> Dict[str, Any]:
         items.append(
             {
                 "cluster": cluster,
-                "command": "bsub.gmcreq -m PUT -r %s -c %s -nu" % (req_disp, cluster),
+                "command": deploy_cmd,
             }
         )
     primary = items[0]
@@ -657,4 +714,8 @@ def merge_get_template_extras(
         return get_manual_note_extras()
     if st == "cluster_selection":
         return get_cluster_selection_extras(run)
+    if st == "cluster_resources_form":
+        return get_cluster_resources_form_extras(run)
+    if st == "cluster_resources_apply":
+        return get_cluster_resources_apply_extras(settings, run)
     return {}

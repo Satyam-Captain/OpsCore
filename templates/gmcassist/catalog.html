@@ -4,6 +4,23 @@
 <section class="card gmcassist-catalog">
   <h1 class="page-title">GMCAssist</h1>
   <p class="text-muted gmcassist-catalog-lead"><strong>Primary operator entry:</strong> pick a flow below. Each wizard saves progress as JSON on this workstation.</p>
+  <p class="gmcassist-catalog-admin-tools text-muted small" style="margin-bottom: 1rem;">
+    <a href="{{ url_for('gmcassist.superadmin_elevate') }}">Superadmin elevate</a>
+    {% if gmcassist_superadmin_session and active_blocking_run %}
+      · <a href="{{ url_for('gmcassist.superadmin_reset_active') }}">Delete / reset active run (DB rollback first)</a>
+    {% endif %}
+    {% if gmcassist_superadmin_session %}
+      <form method="post" action="{{ url_for('gmcassist.superadmin_clear') }}" style="display: inline; margin-left: 0.35rem;">
+        <button type="submit" class="btn btn-sm btn-secondary">Exit superadmin</button>
+      </form>
+    {% endif %}
+  </p>
+  {% if active_blocking_run %}
+    <div class="alert alert-info" role="status" style="margin-bottom: 1.25rem;">
+      <strong>Active wizard in progress</strong> — request <strong>{{ active_blocking_run.request_label }}</strong>.
+      <a href="{{ active_blocking_run.resume_url }}" class="btn btn-sm btn-primary" style="margin-left: 0.5rem;">Resume</a>
+    </div>
+  {% endif %}
   {% if not wizards %}
     <p class="text-muted">No wizard definitions found under <code>services/wizard_defs</code>.</p>
   {% else %}

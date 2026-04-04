@@ -19,6 +19,7 @@ from services.registry import load_all_definitions
 TARGET_TABLES: Tuple[str, ...] = (
     "license_servers",
     "resources_REF",
+    "cluster_resources",
     "resourcegroups",
     "clusters",
 )

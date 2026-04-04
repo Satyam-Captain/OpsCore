@@ -121,9 +121,7 @@
       "placeholder": "Cluster collector ID",
       "help_mode": "lookup_rows",
       "help_table": "clusters",
-      "help_columns": [
-        "ID"
-      ]
+      "help_columns": ["ID", "cluster"]
     },
     {
       "key": "company",

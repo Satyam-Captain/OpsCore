@@ -14,6 +14,7 @@ LS_SERVICE_ID = "add_license_resource_ls"
 
 TABLE_LICENSE_SERVERS = "license_servers"
 TABLE_RESOURCES_REF = "resources_REF"
+TABLE_CLUSTER_RESOURCES = "cluster_resources"
 
 LICENSE_SERVER_KEYS = [
     "application",
@@ -393,6 +394,8 @@ def rollback_step_name(table: str) -> str:
         return "delete_resource"
     if table == TABLE_LICENSE_SERVERS:
         return "delete_license_server"
+    if table == TABLE_CLUSTER_RESOURCES:
+        return "delete_cluster_resource"
     return "delete_row"
 
 

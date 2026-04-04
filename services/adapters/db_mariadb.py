@@ -1,8 +1,8 @@
 """
 MariaDB adapter for tLSF: reads for guided input / prefill; incremental writes.
 
-Write support: ``license_servers`` and ``resources_REF`` insert/delete by numeric primary key
-``ID`` only. Any other table raises ``ValueError``.
+Write support: ``license_servers``, ``resources_REF``, and ``cluster_resources`` insert/delete
+by numeric primary key ``ID`` only. Any other table raises ``ValueError``.
 """
 
 
@@ -29,7 +29,13 @@ _LICENSE_SERVERS_INSERT_COLUMNS = (
 )
 
 # Must match ``TABLE_*`` / column lists in ``elim_db`` (no ``ID`` in payload — DB auto-increment).
-_MARIADB_WRITE_TABLES = frozenset({"license_servers", "resources_REF"})
+_MARIADB_WRITE_TABLES = frozenset({"license_servers", "resources_REF", "cluster_resources"})
+
+_CLUSTER_RESOURCES_INSERT_COLUMNS = (
+    "cluster_ID",
+    "resource_ID",
+    "resource_value",
+)
 
 # Same order as ``RESOURCE_REF_KEYS_BODY`` + ``license_server_ID`` in ``elim_db.build_resource_ref_row``.
 _RESOURCES_REF_INSERT_COLUMNS = (
@@ -401,6 +407,37 @@ class MariaDbAdapter(DbAdapterBase):
         values = [clean[c] for c in cols]
         return cols, values
 
+    def _bind_cluster_resources_insert_values(
+        self, row_dict: Dict[str, Any]
+    ) -> Tuple[List[str], List[Any]]:
+        if not isinstance(row_dict, dict):
+            raise ValueError("row_dict must be a dict")
+        clean = dict(row_dict)
+        clean.pop("ID", None)
+        missing = [c for c in _CLUSTER_RESOURCES_INSERT_COLUMNS if c not in clean]
+        if missing:
+            raise ValueError(
+                "cluster_resources insert missing required columns: %s" % (", ".join(missing),)
+            )
+        extra = [k for k in clean if k not in _CLUSTER_RESOURCES_INSERT_COLUMNS]
+        if extra:
+            raise ValueError(
+                "cluster_resources insert has unknown columns (not inserted): %s"
+                % (", ".join(sorted(extra)),)
+            )
+        cols = list(_CLUSTER_RESOURCES_INSERT_COLUMNS)
+        values: List[Any] = []
+        for c in cols:
+            v = clean[c]
+            if c in ("cluster_ID", "resource_ID"):
+                try:
+                    values.append(int(v))
+                except (TypeError, ValueError):
+                    raise ValueError("cluster_resources %s must be an integer" % c)
+            else:
+                values.append(v if isinstance(v, str) else str(v))
+        return cols, values
+
     def insert_row(self, table_name: str, row_dict: Dict[str, Any]) -> int:
         """
         Insert one row; return new primary key.
@@ -421,6 +458,8 @@ class MariaDbAdapter(DbAdapterBase):
             cols, values = self._bind_license_servers_insert_values(row_dict)
         elif table_name == "resources_REF":
             cols, values = self._bind_resources_ref_insert_values(row_dict)
+        elif table_name == "cluster_resources":
+            cols, values = self._bind_cluster_resources_insert_values(row_dict)
         else:
             raise ValueError(
                 "MariaDB insert_row: table %r has no column binding (adapter bug)."

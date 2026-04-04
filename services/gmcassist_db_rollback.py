@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from services.adapters import build_adapters
 from services.elim_db import (
+    TABLE_CLUSTER_RESOURCES,
     TABLE_LICENSE_SERVERS,
     TABLE_RESOURCES_REF,
     execute_elim_rollback,
@@ -28,6 +29,10 @@ def _is_resource_target(s: str) -> bool:
     return s in ("resources_ref", TABLE_RESOURCES_REF.lower())
 
 
+def _is_cluster_resources_apply_step(step_def: Dict[str, Any]) -> bool:
+    return str(step_def.get("type") or "").strip() == "cluster_resources_apply"
+
+
 def _pop_step_data_for_targets(run: Dict[str, Any], wizard_def: Dict[str, Any], kinds: Tuple[str, ...]) -> None:
     """Remove ``step_data`` entries for db_insert steps whose insert_target matches ``kinds``."""
     steps = wizard_def.get("steps")
@@ -38,14 +43,18 @@ def _pop_step_data_for_targets(run: Dict[str, Any], wizard_def: Dict[str, Any], 
         return
     kinds_set = set(kinds)
     for st in steps:
-        if not isinstance(st, dict) or str(st.get("type") or "").strip() != "db_insert":
+        if not isinstance(st, dict):
             continue
-        it = _norm_insert_target(st.get("insert_target"))
+        st_t = str(st.get("type") or "").strip()
         key_kind = None
-        if _is_license_target(it):
-            key_kind = "license"
-        elif _is_resource_target(it):
-            key_kind = "resource"
+        if st_t == "db_insert":
+            it = _norm_insert_target(st.get("insert_target"))
+            if _is_license_target(it):
+                key_kind = "license"
+            elif _is_resource_target(it):
+                key_kind = "resource"
+        elif st_t == "cluster_resources_apply":
+            key_kind = "cluster_resources"
         if key_kind and key_kind in kinds_set:
             sid = str(st.get("id") or "").strip()
             if sid and sid in sd:
@@ -75,17 +84,46 @@ def maybe_rollback_before_navigate_back(
     step_def = steps[target_index]
     if not isinstance(step_def, dict):
         return True, None
-    if str(step_def.get("type") or "").strip() != "db_insert":
+    stype = str(step_def.get("type") or "").strip()
+    if stype != "db_insert" and not _is_cluster_resources_apply_step(step_def):
         return True, None
 
     it_raw = _norm_insert_target(step_def.get("insert_target"))
-    if not it_raw:
+    if stype == "db_insert" and not it_raw:
         return True, None
 
     ctx = ensure_wizard_context(run)
     db, _, _ = build_adapters(settings)
 
     stack: List[Dict[str, Any]] = []
+
+    if _is_cluster_resources_apply_step(step_def):
+        raw_ids = ctx.get("cluster_resource_row_ids")
+        if not isinstance(raw_ids, list) or len(raw_ids) == 0:
+            _pop_step_data_for_targets(run, wizard_def, ("cluster_resources",))
+            return True, None
+        for raw in reversed(raw_ids):
+            try:
+                cid = int(raw)
+            except (TypeError, ValueError):
+                return False, "Invalid cluster_resource row id in wizard context; cannot roll back safely."
+            stack.append(
+                {"type": "delete_by_id", "table": TABLE_CLUSTER_RESOURCES, "id": cid}
+            )
+        results = execute_elim_rollback(db, stack)
+        failed = [r for r in results if r.get("status") == "failed"]
+        if failed:
+            err_parts = [str(r.get("error")) for r in failed if r.get("error")]
+            msg = "; ".join(err_parts) if err_parts else "Database delete failed."
+            return (
+                False,
+                "Rollback failed (%s). Wizard state was not changed. "
+                "Check DB connectivity, permissions, and whether the row still exists."
+                % msg,
+            )
+        ctx["cluster_resource_row_ids"] = []
+        _pop_step_data_for_targets(run, wizard_def, ("cluster_resources",))
+        return True, "Rolled back cluster_resources inserts."
 
     if _is_resource_target(it_raw):
         rr_raw = ctx.get("resource_id")

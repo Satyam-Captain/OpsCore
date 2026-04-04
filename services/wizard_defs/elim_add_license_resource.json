@@ -18,6 +18,8 @@
     { "id": "generate_lsf_shared", "type": "generate", "title": "Generate lsf.shared", "config_type": "lsf.shared" },
     { "id": "diff_lsf_shared", "type": "diff", "title": "Review lsf.shared diff", "config_type": "lsf.shared" },
     { "id": "publish_lsf_shared", "type": "publish", "title": "Publish lsf.shared", "config_type": "lsf.shared" },
+    { "id": "cluster_resources_form", "type": "cluster_resources_form", "title": "Cluster resources (per cluster)" },
+    { "id": "cluster_resources_apply", "type": "cluster_resources_apply", "title": "Apply cluster_resources" },
     { "id": "generate_lsf_cluster", "type": "generate", "title": "Generate lsf.cluster", "config_type": "lsf.cluster" },
     { "id": "diff_lsf_cluster", "type": "diff", "title": "Review lsf.cluster diff", "config_type": "lsf.cluster" },
     { "id": "publish_lsf_cluster", "type": "publish", "title": "Publish lsf.cluster", "config_type": "lsf.cluster" },

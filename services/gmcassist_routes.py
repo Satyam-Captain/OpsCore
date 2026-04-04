@@ -10,7 +10,26 @@ from typing import Any, Dict, List, Optional, Tuple
 
 
 
-from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
+from flask import (
+    Blueprint,
+    abort,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
+
+from services.gmcassist_cluster_resources import (
+    apply_cluster_resources_batch,
+    build_cluster_resources_rows,
+    cluster_help_rows_from_db,
+    parse_cluster_resources_form,
+    pending_cluster_resources_from_run,
+    validate_cluster_resources_prereq,
+)
 
 
 
@@ -21,6 +40,8 @@ from services.adapters import build_adapters
 from services.blueprint import build_table_default_values
 
 from services.elim_db import (
+
+    TABLE_CLUSTER_RESOURCES,
 
     TABLE_LICENSE_SERVERS,
 
@@ -43,8 +64,16 @@ from services.elim_db import (
 from services.gmcassist_db_rollback import maybe_rollback_before_navigate_back
 
 from services.gmcassist_sql_preview import format_insert_preview
+from services.gmcassist_superadmin import (
+    SESSION_KEY_SUPERADMIN,
+    apply_superadmin_db_rollback_from_run,
+    build_superadmin_reset_audit,
+    build_superadmin_reset_preview,
+    session_is_gmcassist_superadmin,
+    verify_superadmin_password,
+)
 
-from services.input_help import build_help_payload, find_guided_field
+from services.input_help import MODE_UNIQUE, build_help_payload, find_guided_field
 
 from services.gmcassist_wizard_steps import (
 
@@ -74,14 +103,37 @@ from services.registry import ServiceRegistryError, get_definition_by_id
 
 from services.wizard_loader import get_step, list_wizard_definitions, load_wizard_definition, step_title
 
-from services.wizard_run_store import create_wizard_run, load_wizard_run, update_wizard_run
+from services.wizard_run_store import (
+    abandon_wizard_run,
+    build_step_advance_updates,
+    create_wizard_run,
+    find_any_blocking_wizard_run,
+    find_blocking_run_for_normalized_request,
+    is_wizard_run_blocking,
+    list_blocking_wizard_runs,
+    load_wizard_run,
+    mark_wizard_run_superadmin_reset,
+    normalize_wizard_request_number,
+    raw_request_number_from_run,
+    reconcile_wizard_run_for_blocking,
+    update_wizard_run,
+)
 
 
 
 gmcassist_bp = Blueprint("gmcassist", __name__)
 
 
+@gmcassist_bp.context_processor
+def _inject_gmcassist_superadmin_flag() -> Dict[str, Any]:
+    return {"gmcassist_superadmin_session": session_is_gmcassist_superadmin(session)}
 
+
+def _require_gmcassist_superadmin_redirect():
+    if not session_is_gmcassist_superadmin(session):
+        flash("GMCAssist superadmin mode is required.", "error")
+        return redirect(url_for("gmcassist.superadmin_elevate"))
+    return None
 
 
 def _load_settings() -> Dict[str, Any]:
@@ -482,6 +534,180 @@ def _db_insert_dispatch(
 
 
 
+@gmcassist_bp.route("/superadmin/elevate", methods=["GET", "POST"])
+
+def superadmin_elevate():
+
+    settings = _load_settings()
+
+    if not settings.get("service_enabled", True):
+
+        abort(404)
+
+    if request.method == "POST":
+
+        pw = (request.form.get("password") or "").strip()
+
+        if verify_superadmin_password(pw):
+
+            session[SESSION_KEY_SUPERADMIN] = True
+
+            flash("GMCAssist superadmin mode enabled for this browser session.", "ok")
+
+            return redirect(url_for("gmcassist.catalog"))
+
+        flash("Invalid password.", "error")
+
+    return render_template("gmcassist/superadmin_elevate.html")
+
+
+
+
+
+@gmcassist_bp.route("/superadmin/clear", methods=["POST"])
+
+def superadmin_clear():
+
+    settings = _load_settings()
+
+    if not settings.get("service_enabled", True):
+
+        abort(404)
+
+    session.pop(SESSION_KEY_SUPERADMIN, None)
+
+    flash("GMCAssist superadmin mode cleared.", "info")
+
+    return redirect(url_for("gmcassist.catalog"))
+
+
+
+
+@gmcassist_bp.route("/superadmin/reset-active", methods=["GET"])
+
+def superadmin_reset_active():
+
+    gl = _require_gmcassist_superadmin_redirect()
+
+    if gl:
+
+        return gl
+
+    settings = _load_settings()
+
+    blk = find_any_blocking_wizard_run(settings)
+
+    if not blk:
+
+        flash("There is no active blocking wizard run to reset.", "info")
+
+        return redirect(url_for("gmcassist.catalog"))
+
+    run_id, doc = blk
+
+    try:
+
+        db = build_adapters(settings)[0]
+
+    except (NotImplementedError, RuntimeError) as e:
+
+        flash(str(e), "error")
+
+        return redirect(url_for("gmcassist.catalog"))
+
+    preview = build_superadmin_reset_preview(db, doc)
+
+    return render_template(
+
+        "gmcassist/superadmin_reset_preview.html",
+
+        run_id=run_id,
+
+        run=doc,
+
+        reset_preview=preview,
+
+        cancel_url=url_for("gmcassist.catalog"),
+
+    )
+
+
+
+
+
+@gmcassist_bp.route("/superadmin/reset-active/confirm", methods=["POST"])
+
+def superadmin_reset_active_confirm():
+
+    gl = _require_gmcassist_superadmin_redirect()
+
+    if gl:
+
+        return gl
+
+    settings = _load_settings()
+
+    run_id = str(request.form.get("run_id") or "").strip()
+
+    blk = find_any_blocking_wizard_run(settings)
+
+    if not blk or blk[0] != run_id:
+
+        flash("That run is not the current active blocking wizard run; nothing was changed.", "error")
+
+        return redirect(url_for("gmcassist.catalog"))
+
+    # Use reconciled doc from blocking scan (same snapshot as exclusivity check).
+    doc = blk[1]
+
+    if not is_wizard_run_blocking(doc):
+
+        flash("That wizard run is no longer active; nothing was changed.", "error")
+
+        return redirect(url_for("gmcassist.catalog"))
+
+    try:
+
+        db = build_adapters(settings)[0]
+
+    except (NotImplementedError, RuntimeError) as e:
+
+        flash(str(e), "error")
+
+        return redirect(url_for("gmcassist.superadmin_reset_active"))
+
+    ok, err_msg = apply_superadmin_db_rollback_from_run(db, doc)
+
+    if not ok:
+
+        flash("Database rollback failed: %s" % err_msg, "error")
+
+        return redirect(url_for("gmcassist.superadmin_reset_active"))
+
+    audit = build_superadmin_reset_audit(doc)
+
+    updated = mark_wizard_run_superadmin_reset(settings, run_id, audit)
+
+    if not updated:
+
+        flash("Run file could not be updated after rollback; check DB and run JSON manually.", "error")
+
+        return redirect(url_for("gmcassist.catalog"))
+
+    flash(
+
+        "Database rollback completed and the wizard run was marked abandoned (superadmin reset).",
+
+        "ok",
+
+    )
+
+    return redirect(url_for("gmcassist.catalog"))
+
+
+
+
+
 @gmcassist_bp.route("/")
 
 def catalog():
@@ -490,7 +716,37 @@ def catalog():
 
     wizards = list_wizard_definitions(settings)
 
-    return render_template("gmcassist/catalog.html", wizards=wizards)
+    active_blocking_run = None
+
+    blk = find_any_blocking_wizard_run(settings)
+
+    if blk:
+
+        bid, bdoc = blk
+
+        raw_rn = raw_request_number_from_run(bdoc)
+
+        label = raw_rn if raw_rn else "(request not confirmed yet)"
+
+        active_blocking_run = {
+
+            "run_id": bid,
+
+            "request_label": label,
+
+            "resume_url": url_for("gmcassist.wizard_run", run_id=bid),
+
+        }
+
+    return render_template(
+
+        "gmcassist/catalog.html",
+
+        wizards=wizards,
+
+        active_blocking_run=active_blocking_run,
+
+    )
 
 
 
@@ -544,6 +800,68 @@ def service_field_help(service_id: str, field_key: str):
 
 
 
+@gmcassist_bp.route("/help/cluster-resources/clusters")
+
+def help_cluster_resources_clusters():
+
+    """JSON rows for cluster_ID picker: cluster_ID + label (name + id)."""
+
+    settings = _load_settings()
+
+    try:
+
+        db = build_adapters(settings)[0]
+
+    except (NotImplementedError, RuntimeError) as e:
+
+        return jsonify({"error": str(e), "rows": []}), 503
+
+    rows = cluster_help_rows_from_db(db)
+
+    return jsonify({"rows": rows})
+
+
+
+
+
+# Same metadata shape as guided_inputs unique_values (cluster_resources.resource_value).
+_CLUSTER_RESOURCES_RESOURCE_VALUE_HELP_FIELD = {
+    "key": "resource_value",
+    "help_mode": MODE_UNIQUE,
+    "help_table": "cluster_resources",
+    "help_column": "resource_value",
+    "column": "resource_value",
+}
+
+
+@gmcassist_bp.route("/help/cluster-resources/resource-values")
+
+def help_cluster_resources_values():
+
+    """Distinct ``resource_value`` values from ``cluster_resources`` (shared input_help path)."""
+
+    settings = _load_settings()
+
+    try:
+
+        db = build_adapters(settings)[0]
+
+    except (NotImplementedError, RuntimeError) as e:
+
+        return jsonify({"mode": MODE_UNIQUE, "values": [], "error": str(e)}), 503
+
+    payload, err = build_help_payload(db, _CLUSTER_RESOURCES_RESOURCE_VALUE_HELP_FIELD)
+
+    if err:
+
+        return jsonify({"mode": MODE_UNIQUE, "values": [], "error": err}), 400
+
+    return jsonify(payload)
+
+
+
+
+
 @gmcassist_bp.route("/wizard/<wizard_id>/start", methods=["POST"])
 
 def wizard_start(wizard_id: str):
@@ -557,6 +875,28 @@ def wizard_start(wizard_id: str):
         flash("Unknown wizard.", "error")
 
         return redirect(url_for("gmcassist.catalog"))
+
+    blk = find_any_blocking_wizard_run(settings)
+
+    if blk:
+
+        bid, bdoc = blk
+
+        raw_rn = raw_request_number_from_run(bdoc)
+
+        disp = raw_rn if raw_rn else "(not confirmed yet)"
+
+        flash(
+
+            "Request %s is still in progress. Resuming that wizard — complete it before starting a new one."
+
+            % disp,
+
+            "info",
+
+        )
+
+        return redirect(url_for("gmcassist.wizard_run", run_id=bid))
 
     sid = str(wdef.get("service_id") or "").strip()
 
@@ -596,9 +936,19 @@ def wizard_run(run_id: str):
 
         return redirect(url_for("gmcassist.catalog"))
 
-    if str(run.get("status") or "") == "completed":
+    run = reconcile_wizard_run_for_blocking(settings, run_id, run)
+
+    _st = str(run.get("status") or "").strip().lower()
+
+    if _st == "completed":
 
         flash("This wizard run is already completed.", "info")
+
+        return redirect(url_for("gmcassist.catalog"))
+
+    if _st == "abandoned":
+
+        flash("This wizard run is no longer active.", "info")
 
         return redirect(url_for("gmcassist.catalog"))
 
@@ -748,6 +1098,72 @@ def wizard_run(run_id: str):
 
                 return redirect(url_for("gmcassist.wizard_run", run_id=run_id))
 
+            rn_norm = normalize_wizard_request_number(rn)
+
+            dup = find_blocking_run_for_normalized_request(settings, rn_norm)
+
+            if dup and dup[0] != run_id:
+
+                abandon_wizard_run(
+
+                    settings,
+
+                    run_id,
+
+                    "superseded_by_resume_same_request",
+
+                    superseded_by_run_id=dup[0],
+
+                )
+
+                flash("Resuming the existing wizard run for this request.", "info")
+
+                return redirect(url_for("gmcassist.wizard_run", run_id=dup[0]))
+
+            for oid, odoc in list_blocking_wizard_runs(settings):
+
+                if oid == run_id:
+
+                    continue
+
+                o_raw = raw_request_number_from_run(odoc)
+
+                o_norm = normalize_wizard_request_number(o_raw)
+
+                if o_norm and o_norm != rn_norm:
+
+                    flash(
+
+                        (
+
+                            "Request %s is still in progress. Resume or complete that request "
+
+                            "before starting request %s."
+
+                        )
+
+                        % (o_raw or o_norm, rn),
+
+                        "error",
+
+                    )
+
+                    return redirect(url_for("gmcassist.wizard_run", run_id=oid))
+
+                if not o_norm:
+
+                    flash(
+
+                        "Another wizard run is still in progress (request not confirmed yet). "
+
+                        "Resume it before entering a different request.",
+
+                        "error",
+
+                    )
+
+                    return redirect(url_for("gmcassist.wizard_run", run_id=oid))
+
             si = run.get("service_inputs")
 
             if not isinstance(si, dict):
@@ -762,15 +1178,15 @@ def wizard_run(run_id: str):
 
                 run_id,
 
-                {
+                build_step_advance_updates(
 
-                    "request_number": rn,
+                    idx,
 
-                    "service_inputs": si,
+                    len(steps),
 
-                    "current_step_index": idx + 1,
+                    {"request_number": rn, "service_inputs": si},
 
-                },
+                ),
 
             )
 
@@ -806,7 +1222,7 @@ def wizard_run(run_id: str):
 
                 run_id,
 
-                {"context": ctx, "current_step_index": idx + 1},
+                build_step_advance_updates(idx, len(steps), {"context": ctx}),
 
             )
 
@@ -832,11 +1248,175 @@ def wizard_run(run_id: str):
 
                 run_id,
 
-                {"service_inputs": si, "current_step_index": idx + 1},
+                build_step_advance_updates(idx, len(steps), {"service_inputs": si}),
 
             )
 
             return redirect(url_for("gmcassist.wizard_run", run_id=run_id))
+
+
+
+        if stype == "cluster_resources_form":
+
+            if action == "next":
+
+                run_cr = load_wizard_run(settings, run_id)
+
+                if not run_cr:
+
+                    flash("Wizard run not found.", "error")
+
+                    return redirect(url_for("gmcassist.catalog"))
+
+                ctx = ensure_wizard_context(run_cr)
+
+                pre_err = validate_cluster_resources_prereq(ctx.get("resource_id"))
+
+                if pre_err:
+
+                    flash(pre_err, "error")
+
+                    return redirect(url_for("gmcassist.wizard_run", run_id=run_id))
+
+                try:
+
+                    rid = int(ctx.get("resource_id"))
+
+                except (TypeError, ValueError):
+
+                    flash("resource_id in context is invalid.", "error")
+
+                    return redirect(url_for("gmcassist.wizard_run", run_id=run_id))
+
+                ids_c, vals = parse_cluster_resources_form(request.form)
+
+                rows, row_errs = build_cluster_resources_rows(ids_c, vals, rid)
+
+                if row_errs:
+
+                    flash("; ".join(row_errs), "error")
+
+                    return redirect(url_for("gmcassist.wizard_run", run_id=run_id))
+
+                update_wizard_run(
+
+                    settings,
+
+                    run_id,
+
+                    build_step_advance_updates(
+
+                        idx,
+
+                        len(steps),
+
+                        {"pending_cluster_resources": rows},
+
+                    ),
+
+                )
+
+                return redirect(url_for("gmcassist.wizard_run", run_id=run_id))
+
+
+
+        if stype == "cluster_resources_apply":
+
+            if action == "next":
+
+                run_apply = load_wizard_run(settings, run_id)
+
+                if not run_apply:
+
+                    flash("Wizard run not found.", "error")
+
+                    return redirect(url_for("gmcassist.catalog"))
+
+                pending = pending_cluster_resources_from_run(run_apply)
+
+                if not pending:
+
+                    flash("No cluster_resources rows to apply; go back and add rows.", "error")
+
+                    return redirect(url_for("gmcassist.wizard_run", run_id=run_id))
+
+                try:
+
+                    db = build_adapters(settings)[0]
+
+                except (NotImplementedError, RuntimeError) as e:
+
+                    flash(str(e), "error")
+
+                    return redirect(url_for("gmcassist.wizard_run", run_id=run_id))
+
+                ok, inserted_ids, batch_err = apply_cluster_resources_batch(db, pending)
+
+                if not ok:
+
+                    flash(batch_err or "cluster_resources insert failed.", "error")
+
+                    return redirect(url_for("gmcassist.wizard_run", run_id=run_id))
+
+                ctx = ensure_wizard_context(run_apply)
+
+                ctx["cluster_resource_row_ids"] = [int(x) for x in inserted_ids]
+
+                sid = str(step_def.get("id") or "cluster_resources_apply")
+
+                sd = run_apply.setdefault("step_data", {})
+
+                if isinstance(sd, dict):
+
+                    sd[sid] = {
+
+                        "insert_target": TABLE_CLUSTER_RESOURCES,
+
+                        "inserted_ids": list(ctx["cluster_resource_row_ids"]),
+
+                    }
+
+                updates = build_step_advance_updates(
+
+                    idx,
+
+                    len(steps),
+
+                    {
+
+                        "context": ctx,
+
+                        "pending_cluster_resources": [],
+
+                        "step_data": run_apply.get("step_data"),
+
+                    },
+
+                )
+
+                update_wizard_run(settings, run_id, updates)
+
+                if int(updates["current_step_index"]) >= len(steps):
+
+                    flash(
+
+                        "Inserted %s cluster_resources row(s). Wizard completed." % len(inserted_ids),
+
+                        "ok",
+
+                    )
+
+                    return redirect(url_for("gmcassist.catalog"))
+
+                flash(
+
+                    "Inserted %s cluster_resources row(s)." % len(inserted_ids),
+
+                    "ok",
+
+                )
+
+                return redirect(url_for("gmcassist.wizard_run", run_id=run_id))
 
 
 
@@ -850,7 +1430,15 @@ def wizard_run(run_id: str):
 
                 return redirect(url_for("gmcassist.wizard_run", run_id=run_id))
 
-            update_wizard_run(settings, run_id, {"current_step_index": idx + 1})
+            update_wizard_run(
+
+                settings,
+
+                run_id,
+
+                build_step_advance_updates(idx, len(steps), {}),
+
+            )
 
             return redirect(url_for("gmcassist.wizard_run", run_id=run_id))
 
@@ -874,27 +1462,27 @@ def wizard_run(run_id: str):
 
                 return redirect(url_for("gmcassist.wizard_run", run_id=run_id))
 
-            new_idx = idx + 1
+            updates = build_step_advance_updates(
 
-            updates: Dict[str, Any] = {
+                idx,
 
-                "service_inputs": run_fresh.get("service_inputs"),
+                len(steps),
 
-                "context": run_fresh.get("context"),
+                {
 
-                "step_data": run_fresh.get("step_data"),
+                    "service_inputs": run_fresh.get("service_inputs"),
 
-                "current_step_index": new_idx,
+                    "context": run_fresh.get("context"),
 
-            }
+                    "step_data": run_fresh.get("step_data"),
 
-            if new_idx >= len(steps):
+                },
 
-                updates["status"] = "completed"
+            )
 
             update_wizard_run(settings, run_id, updates)
 
-            if new_idx >= len(steps):
+            if int(updates["current_step_index"]) >= len(steps):
 
                 flash("%s Wizard completed." % msg, "ok")
 

@@ -147,6 +147,85 @@
       <button type="submit" name="action" value="back" class="btn btn-secondary">Back</button>
       <button type="submit" name="action" value="next" class="btn btn-primary">Apply insert</button>
     </form>
+  {% elif st == 'cluster_resources_form' %}
+    <p class="text-muted">Add one row per cluster mapping for this resource. <code>resource_ID</code> is the resources_REF row you applied earlier.</p>
+    {% set cr_res_id = wx.get('cluster_resources_resource_id') %}
+    {% if cr_res_id is none %}
+      <div class="alert alert-error" role="alert">resource_id is missing from wizard context. Complete the resources_REF apply step first.</div>
+    {% endif %}
+    <div class="gmcassist-cr-help-panels">
+      <div id="gmcassist-cr-cluster-panel" class="gmcassist-cr-panel" style="display:none;" aria-live="polite"></div>
+      <div id="gmcassist-cr-value-panel" class="gmcassist-cr-panel" style="display:none;" aria-live="polite"></div>
+    </div>
+    <form method="post" class="stack-form gmcassist-cr-form" id="gmcassist-cr-form">
+      <table class="gmcassist-cr-table">
+        <thead>
+          <tr>
+            <th scope="col">cluster_ID</th>
+            <th scope="col">resource_ID</th>
+            <th scope="col">resource_value</th>
+            <th scope="col"></th>
+          </tr>
+        </thead>
+        <tbody id="gmcassist-cr-tbody">
+          {% for r in wx.get('cluster_resources_rows') or [{}] %}
+            <tr class="gmcassist-cr-row">
+              <td>
+                <input type="text" name="cr_cluster_id" class="gmcassist-cr-cluster-id" value="{{ r.get('cluster_ID', '') }}" autocomplete="off" {% if cr_res_id is none %}disabled{% endif %} />
+              </td>
+              <td><code class="gmcassist-cr-rid">{{ cr_res_id if cr_res_id is not none else '—' }}</code></td>
+              <td>
+                <input type="text" name="cr_resource_value" class="gmcassist-cr-resource-value" value="{{ r.get('resource_value', '') }}" autocomplete="off" {% if cr_res_id is none %}disabled{% endif %} />
+              </td>
+              <td>
+                <button type="button" class="btn btn-secondary gmcassist-cr-remove" {% if cr_res_id is none %}disabled{% endif %}>Remove</button>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="gmcassist-cr-toolbar">
+        <button type="button" class="btn btn-secondary" id="gmcassist-cr-add-row" {% if cr_res_id is none %}disabled{% endif %}>Add row</button>
+        <button type="button" class="btn btn-secondary" id="gmcassist-cr-help-cluster" {% if cr_res_id is none %}disabled{% endif %}>Cluster ID help</button>
+        <button type="button" class="btn btn-secondary" id="gmcassist-cr-help-value" {% if cr_res_id is none %}disabled{% endif %}>resource_value help</button>
+      </p>
+      <div class="form-actions gmcassist-wizard-nav">
+        {% if prev_step_title %}
+          <button type="submit" name="action" value="back" class="btn btn-secondary">Back</button>
+        {% endif %}
+        <button type="submit" name="action" value="next" class="btn btn-primary" {% if cr_res_id is none %}disabled{% endif %}>Next</button>
+      </div>
+    </form>
+    <template id="gmcassist-cr-row-template">
+      <tr class="gmcassist-cr-row">
+        <td><input type="text" name="cr_cluster_id" class="gmcassist-cr-cluster-id" value="" autocomplete="off" /></td>
+        <td><code class="gmcassist-cr-rid">{{ cr_res_id if cr_res_id is not none else '' }}</code></td>
+        <td><input type="text" name="cr_resource_value" class="gmcassist-cr-resource-value" value="" autocomplete="off" /></td>
+        <td><button type="button" class="btn btn-secondary gmcassist-cr-remove">Remove</button></td>
+      </tr>
+    </template>
+  {% elif st == 'cluster_resources_apply' %}
+    <p class="text-muted">Review SQL previews, then apply all <code>cluster_resources</code> rows. Generation of <code>lsf.cluster</code> is blocked until this succeeds.</p>
+    {% set pending = wx.get('cluster_resources_pending') or [] %}
+    {% set sqls = wx.get('cluster_resources_sql_previews') or [] %}
+    {% if not pending %}
+      <div class="alert alert-error" role="alert">Nothing to apply. Go back and add rows.</div>
+    {% else %}
+      {% for row in pending %}
+        <h3 class="gmcassist-subhead">Row {{ loop.index }}</h3>
+        {% if loop.index0 < sqls|length %}
+          <pre class="operation-pre gmcassist-sql-preview">{{ sqls[loop.index0] }}</pre>
+        {% endif %}
+        <details class="gmcassist-json-details">
+          <summary>Row as JSON</summary>
+          <pre class="operation-pre gmcassist-pre-tight">{{ row | tojson(indent=2) }}</pre>
+        </details>
+      {% endfor %}
+    {% endif %}
+    <form method="post" class="form-actions gmcassist-wizard-nav">
+      <button type="submit" name="action" value="back" class="btn btn-secondary">Back</button>
+      <button type="submit" name="action" value="next" class="btn btn-primary" {% if not pending %}disabled{% endif %}>Apply inserts</button>
+    </form>
   {% elif st == 'generate' %}
     <p class="text-muted">Config: <code>{{ wx.get('config_type', '') }}</code> — using the cluster list from the Clusters step.</p>
     {% if wx.get('config_policy_error') %}
@@ -330,5 +409,144 @@
 {% block scripts %}
 {% if st == 'form' %}
 <script src="{{ url_for('static', filename='services_inputs.js') }}" defer></script>
+{% endif %}
+{% if st == 'cluster_resources_form' %}
+{% set wx = gmcassist_extras if gmcassist_extras is defined else {} %}
+<script>
+(function () {
+  var tbody = document.getElementById("gmcassist-cr-tbody");
+  var tpl = document.getElementById("gmcassist-cr-row-template");
+  var panelC = document.getElementById("gmcassist-cr-cluster-panel");
+  var panelV = document.getElementById("gmcassist-cr-value-panel");
+  var urlC = {{ wx.get('cluster_resources_help_clusters_url')|tojson }};
+  var urlV = {{ wx.get('cluster_resources_help_values_url')|tojson }};
+  var currentRow = null;
+
+  function bindRow(tr) {
+    tr.querySelectorAll(".gmcassist-cr-cluster-id, .gmcassist-cr-resource-value").forEach(function (inp) {
+      inp.addEventListener("focus", function () { currentRow = tr; });
+    });
+    var rm = tr.querySelector(".gmcassist-cr-remove");
+    if (rm) {
+      rm.addEventListener("click", function () {
+        if (tbody && tbody.querySelectorAll(".gmcassist-cr-row").length > 1) {
+          tr.parentNode.removeChild(tr);
+        }
+      });
+    }
+  }
+
+  if (tbody) {
+    tbody.querySelectorAll(".gmcassist-cr-row").forEach(bindRow);
+  }
+
+  var addBtn = document.getElementById("gmcassist-cr-add-row");
+  if (addBtn && tpl && tbody) {
+    addBtn.addEventListener("click", function () {
+      var node = tpl.content.cloneNode(true);
+      var tr = node.querySelector("tr");
+      if (tr) {
+        tbody.appendChild(tr);
+        bindRow(tr);
+      }
+    });
+  }
+
+  function showPanel(which, html) {
+    if (which === "c") {
+      if (panelV) panelV.style.display = "none";
+      if (panelC) {
+        panelC.innerHTML = html;
+        panelC.style.display = "block";
+      }
+    } else {
+      if (panelC) panelC.style.display = "none";
+      if (panelV) {
+        panelV.innerHTML = html;
+        panelV.style.display = "block";
+      }
+    }
+  }
+
+  function esc(s) {
+    var d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  var hc = document.getElementById("gmcassist-cr-help-cluster");
+  if (hc) {
+    hc.addEventListener("click", function () {
+      fetch(urlC).then(function (r) { return r.json(); }).then(function (data) {
+        var rows = data.rows || [];
+        if (!rows.length) {
+          showPanel("c", "<p class=\"text-muted\">No cluster rows returned.</p>");
+          return;
+        }
+        var h = "<p class=\"page-description help-click-hint\">Click a row to fill <strong>cluster_ID</strong> on the focused row.</p><table class=\"help-lookup-table help-lookup-table--clickable\"><thead><tr><th>Label</th><th>cluster_ID</th></tr></thead><tbody>";
+        rows.forEach(function (row) {
+          h += "<tr style=\"cursor:pointer\" title=\"Fill cluster_ID\"><td>" + esc(String(row.label || "")) + "</td><td>" + esc(String(row.cluster_ID != null ? row.cluster_ID : "")) + "</td></tr>";
+        });
+        h += "</tbody></table>";
+        showPanel("c", h);
+        if (panelC) {
+          panelC.querySelectorAll("tbody tr").forEach(function (tr, i) {
+            tr.addEventListener("click", function () {
+              var row = rows[i];
+              if (!row || currentRow == null) return;
+              var inp = currentRow.querySelector(".gmcassist-cr-cluster-id");
+              if (inp) inp.value = row.cluster_ID != null ? String(row.cluster_ID) : "";
+            });
+          });
+        }
+      }).catch(function () {
+        showPanel("c", "<p class=\"alert alert-error\">Failed to load cluster help.</p>");
+      });
+    });
+  }
+
+  var hv = document.getElementById("gmcassist-cr-help-value");
+  if (hv) {
+    hv.addEventListener("click", function () {
+      fetch(urlV).then(function (r) { return r.json(); }).then(function (data) {
+        var vals = [];
+        if (data && data.mode === "unique_values" && data.values && data.values.length) {
+          vals = data.values;
+        } else if (data && data.values && data.values.length) {
+          vals = data.values;
+        }
+        if (!vals.length) {
+          showPanel("v", "<p class=\"text-muted\">No sample values in mock/database for <code>cluster_resources.resource_value</code>.</p>");
+          return;
+        }
+        var h = "<p class=\"page-description help-click-hint\">Click a value to fill <strong>resource_value</strong> on the focused row.</p><ul class=\"help-values-list help-values-list--clickable\">";
+        vals.forEach(function (v) {
+          h += "<li class=\"help-value-item\" style=\"cursor:pointer\">" + esc(String(v)) + "</li>";
+        });
+        h += "</ul>";
+        showPanel("v", h);
+        if (panelV) {
+          var lis = panelV.querySelectorAll(".help-value-item");
+          for (var j = 0; j < lis.length; j++) {
+            (function (val) {
+              lis[j].addEventListener("click", function () {
+                if (currentRow == null) {
+                  return;
+                }
+                var inp = currentRow.querySelector(".gmcassist-cr-resource-value");
+                if (inp) {
+                  inp.value = val;
+                }
+              });
+            })(vals[j] !== undefined && vals[j] !== null ? String(vals[j]) : "");
+          }
+        }
+      }).catch(function () {
+        showPanel("v", "<p class=\"alert alert-error\">Failed to load value help.</p>");
+      });
+    });
+  }
+})();
+</script>
 {% endif %}
 {% endblock %}

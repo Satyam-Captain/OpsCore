@@ -1287,6 +1287,28 @@ tr.line-modified td.diff-sbs-right {
   margin: 0;
 }
 
+.gmcassist-superadmin-badge {
+  font-weight: 600;
+  color: #b45309;
+}
+
+.gmcassist-reset-dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.15rem 0.75rem;
+  font-size: 0.88rem;
+}
+
+.gmcassist-reset-dl dt {
+  margin: 0;
+  color: var(--color-muted);
+}
+
+.gmcassist-reset-dl dd {
+  margin: 0;
+}
+
 .gmcassist-wizard-summary {
   margin-bottom: 1.25rem;
   padding-bottom: 1rem;

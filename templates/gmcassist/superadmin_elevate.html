@@ -1,0 +1,19 @@
+{% extends "gmcassist/base_gmcassist.html" %}
+{% block title %}GMCAssist · Superadmin{% endblock %}
+{% block content %}
+<section class="card gmcassist-catalog">
+  <h1 class="page-title">GMCAssist superadmin (prototype)</h1>
+  <p class="text-muted">Enter the site superadmin password to enable reset of an active wizard run (DB rollback required). Uses this browser session only.</p>
+  <p class="text-muted small">Password: set <code>GMCASSIST_SUPERADMIN_PASSWORD</code> in the environment, or use the built-in prototype default.</p>
+  <form method="post" class="stack-form" style="max-width: 24rem;">
+    <div class="form-field">
+      <label for="superadmin_pw">Password</label>
+      <input type="password" id="superadmin_pw" name="password" autocomplete="off" required />
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Enable superadmin</button>
+      <a href="{{ url_for('gmcassist.catalog') }}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

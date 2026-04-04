@@ -1,4 +1,4 @@
 {% extends "base.html" %}
 {% block header_brand_href %}{{ url_for('gmcassist.catalog') }}{% endblock %}
 {% block header_brand %}GMCAssist{% endblock %}
-{% block header_badge %}Operator flows{% endblock %}
+{% block header_badge %}Operator flows{% if gmcassist_superadmin_session %} · <span class="gmcassist-superadmin-badge" title="Prototype GMCAssist superadmin session">Superadmin</span>{% endif %}{% endblock %}

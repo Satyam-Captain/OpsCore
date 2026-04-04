@@ -19,7 +19,7 @@
   "service_enabled": true,
   "service_mode": "mock",
   "service_db_backend": "json",
-  "_service_mariadb_notes": "When service_db_backend is mariadb: set service_mariadb_host, service_mariadb_user, service_mariadb_database (default tLSF). Password via service_mariadb_password or env OPSCORE_MARIADB_PASSWORD. Writes: license_servers and resources_REF insert/delete supported (ELIM/LS flow); other tables are not supported.",
+  "_service_mariadb_notes": "When service_db_backend is mariadb: set service_mariadb_host, service_mariadb_user, service_mariadb_database (default tLSF). Password via service_mariadb_password or env OPSCORE_MARIADB_PASSWORD. Writes: license_servers, resources_REF, cluster_resources insert/delete supported where implemented; other tables are not supported.",
   "service_mariadb_host": "",
   "service_mariadb_port": 3306,
   "service_mariadb_user": "",

@@ -1,0 +1,50 @@
+{% extends "gmcassist/base_gmcassist.html" %}
+{% block title %}GMCAssist · Reset active run{% endblock %}
+{% block content %}
+<section class="card gmcassist-catalog">
+  <h1 class="page-title">Delete / reset active wizard run</h1>
+  <p class="text-muted"><strong>Superadmin only.</strong> The following database rows will be removed (rollback order: cluster_resources → resources_REF → license_servers). The wizard JSON file is <strong>not</strong> deleted; it is marked <code>abandoned</code> with audit fields.</p>
+  <p class="text-muted small">Run ID: <code>{{ run_id }}</code> · Request: <code>{{ run.request_number or '—' }}</code></p>
+
+  {% if not reset_preview %}
+    <div class="alert alert-info" role="status">No inserted row IDs are recorded in this run&rsquo;s context (nothing to roll back in the database). You can still confirm to mark the run abandoned and release the blocking lock.</div>
+  {% else %}
+    {% for sec in reset_preview %}
+      <h2 class="gmcassist-subhead" style="margin-top: 1.25rem;">Table: <code>{{ sec.table }}</code></h2>
+      <table class="help-lookup-table">
+        <thead>
+          <tr>
+            <th scope="col">Row ID</th>
+            <th scope="col">Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in sec.rows %}
+            <tr>
+              <td><code>{{ row.id }}</code></td>
+              <td>
+                {% if row.fields %}
+                  <dl class="gmcassist-reset-dl">
+                    {% for k, v in row.fields | dictsort %}
+                      <dt>{{ k }}</dt>
+                      <dd><code>{{ v }}</code></dd>
+                    {% endfor %}
+                  </dl>
+                {% else %}
+                  <span class="text-muted">(row not found in DB or no preview columns)</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endfor %}
+  {% endif %}
+
+  <form method="post" action="{{ url_for('gmcassist.superadmin_reset_active_confirm') }}" class="form-actions" style="margin-top: 1.5rem;">
+    <input type="hidden" name="run_id" value="{{ run_id }}" />
+    <button type="submit" class="btn btn-primary">Confirm rollback &amp; abandon run</button>
+    <a href="{{ cancel_url }}" class="btn btn-secondary">Cancel</a>
+  </form>
+</section>
+{% endblock %}
