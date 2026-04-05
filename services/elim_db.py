@@ -461,12 +461,86 @@ def execute_elim_rollback(db: Any, rollback_stack: List[Any]) -> List[Dict[str, 
     Run deletes in stack order; collect per-step results. Continues after failures.
 
     Each result: step, status (done | not_found | failed | skipped), id, optional error.
+
+    Supports ``delete_by_id`` and ``delete_cluster_resources_composite`` (cluster_ID, resource_ID, resource_value).
     """
     results: List[Dict[str, Any]] = []
     if not isinstance(rollback_stack, list):
         return results
     for raw in rollback_stack:
-        if not isinstance(raw, dict) or raw.get("type") != "delete_by_id":
+        if not isinstance(raw, dict):
+            results.append(
+                {
+                    "step": "skipped",
+                    "status": "skipped",
+                    "id": None,
+                    "error": "Invalid rollback entry",
+                }
+            )
+            continue
+        rtype = raw.get("type")
+        if rtype == "delete_cluster_resources_composite":
+            try:
+                c_id = int(raw.get("cluster_ID"))
+                r_id = int(raw.get("resource_ID"))
+                r_val = raw.get("resource_value")
+                r_val_s = r_val if isinstance(r_val, str) else ("" if r_val is None else str(r_val))
+            except (TypeError, ValueError):
+                results.append(
+                    {
+                        "step": "delete_cluster_resource",
+                        "status": "failed",
+                        "id": None,
+                        "error": "Invalid cluster_resources composite rollback entry",
+                    }
+                )
+                continue
+            fn = getattr(db, "delete_cluster_resources_by_composite", None)
+            if not callable(fn):
+                results.append(
+                    {
+                        "step": "delete_cluster_resource",
+                        "status": "failed",
+                        "id": None,
+                        "error": "DB adapter has no delete_cluster_resources_by_composite",
+                    }
+                )
+                continue
+            try:
+                removed = bool(fn(c_id, r_id, r_val_s))
+            except (OSError, ValueError, TypeError) as e:
+                results.append(
+                    {
+                        "step": "delete_cluster_resource",
+                        "status": "failed",
+                        "id": None,
+                        "error": str(e),
+                    }
+                )
+                continue
+            if not removed:
+                results.append(
+                    {
+                        "step": "delete_cluster_resource",
+                        "status": "failed",
+                        "id": None,
+                        "error": (
+                            "cluster_resources delete matched no row "
+                            "(cluster_ID=%s, resource_ID=%s, resource_value=%r)"
+                            % (c_id, r_id, r_val_s)
+                        ),
+                    }
+                )
+                continue
+            results.append(
+                {
+                    "step": "delete_cluster_resource",
+                    "status": "done",
+                    "id": None,
+                }
+            )
+            continue
+        if rtype != "delete_by_id":
             results.append(
                 {
                     "step": "skipped",

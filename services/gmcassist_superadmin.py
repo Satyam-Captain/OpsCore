@@ -7,6 +7,12 @@ Password: environment variable ``GMCASSIST_SUPERADMIN_PASSWORD``, else fallback 
 import os
 from typing import Any, Dict, List, Optional, Tuple
 
+from services.gmcassist_cluster_resources import (
+    CLUSTER_RESOURCE_ROLLBACK_ROWS_KEY,
+    cluster_resources_row_dict_for_preview,
+    normalize_cluster_resource_rollback_spec,
+)
+
 SESSION_KEY_SUPERADMIN = "gmcassist_superadmin"
 
 _ENV_PASSWORD = "GMCASSIST_SUPERADMIN_PASSWORD"
@@ -56,9 +62,30 @@ def build_superadmin_reset_preview(
     sections: List[Dict[str, Any]] = []
     ctx = run.get("context") if isinstance(run.get("context"), dict) else {}
 
+    cr_block: Dict[str, Any] = {"table": "cluster_resources", "rows": []}
+    cr_specs = ctx.get(CLUSTER_RESOURCE_ROLLBACK_ROWS_KEY)
+    if isinstance(cr_specs, list) and cr_specs:
+        for raw_spec in cr_specs:
+            if not isinstance(raw_spec, dict):
+                continue
+            try:
+                spec = normalize_cluster_resource_rollback_spec(raw_spec)
+            except (KeyError, TypeError, ValueError):
+                continue
+            full = cluster_resources_row_dict_for_preview(db, spec)
+            label = "%s / %s / %s" % (
+                spec["cluster_ID"],
+                spec["resource_ID"],
+                spec["resource_value"],
+            )
+            cr_block["rows"].append(
+                {
+                    "id": label,
+                    "fields": _subset_row(full, _PREVIEW_CLUSTER_RESOURCES),
+                }
+            )
     cr_ids = ctx.get("cluster_resource_row_ids")
     if isinstance(cr_ids, list) and cr_ids:
-        block: Dict[str, Any] = {"table": "cluster_resources", "rows": []}
         for raw in cr_ids:
             try:
                 pk = int(raw)
@@ -69,11 +96,11 @@ def build_superadmin_reset_preview(
                 row = db.get_row_by_id("cluster_resources", pk)
             except (ValueError, TypeError, OSError):
                 row = None
-            block["rows"].append(
+            cr_block["rows"].append(
                 {"id": pk, "fields": _subset_row(row, _PREVIEW_CLUSTER_RESOURCES)}
             )
-        if block["rows"]:
-            sections.append(block)
+    if cr_block["rows"]:
+        sections.append(cr_block)
 
     rr_raw = ctx.get("resource_id")
     if rr_raw is not None:
@@ -124,6 +151,28 @@ def apply_superadmin_db_rollback_from_run(db: Any, run: Dict[str, Any]) -> Tuple
     """
     ctx = run.get("context") if isinstance(run.get("context"), dict) else {}
 
+    cr_specs_raw = ctx.get(CLUSTER_RESOURCE_ROLLBACK_ROWS_KEY)
+    if isinstance(cr_specs_raw, list) and cr_specs_raw:
+        fn = getattr(db, "delete_cluster_resources_by_composite", None)
+        if not callable(fn):
+            return False, "DB adapter has no delete_cluster_resources_by_composite; cannot roll back cluster_resources."
+        for raw_spec in reversed(list(cr_specs_raw)):
+            if not isinstance(raw_spec, dict):
+                return False, "Invalid cluster_resources rollback metadata in wizard context."
+            try:
+                spec = normalize_cluster_resource_rollback_spec(raw_spec)
+            except (KeyError, TypeError, ValueError) as e:
+                return False, "Invalid cluster_resources rollback spec: %s" % e
+            try:
+                deleted = fn(spec["cluster_ID"], spec["resource_ID"], spec["resource_value"])
+            except (ValueError, TypeError, OSError) as e:
+                return False, "cluster_resources composite rollback failed: %s" % e
+            if not deleted:
+                return False, (
+                    "cluster_resources composite rollback found no row (cluster_ID=%s, resource_ID=%s, resource_value=%r)."
+                    % (spec["cluster_ID"], spec["resource_ID"], spec["resource_value"])
+                )
+
     cr_ids = ctx.get("cluster_resource_row_ids")
     if not isinstance(cr_ids, list):
         cr_ids = []
@@ -166,6 +215,9 @@ def build_superadmin_reset_audit(run: Dict[str, Any]) -> Dict[str, Any]:
     ctx = run.get("context") if isinstance(run.get("context"), dict) else {}
     return {
         "prior_cluster_resource_row_ids": list(ctx.get("cluster_resource_row_ids") or []),
+        "prior_cluster_resource_rollback_rows": list(
+            ctx.get(CLUSTER_RESOURCE_ROLLBACK_ROWS_KEY) or []
+        ),
         "prior_resource_id": ctx.get("resource_id"),
         "prior_license_server_id": ctx.get("license_server_id"),
         "prior_request_number": str(run.get("request_number") or ""),

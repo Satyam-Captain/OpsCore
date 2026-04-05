@@ -23,6 +23,7 @@ from flask import (
 )
 
 from services.gmcassist_cluster_resources import (
+    CLUSTER_RESOURCE_ROLLBACK_ROWS_KEY,
     apply_cluster_resources_batch,
     build_cluster_resources_rows,
     cluster_help_rows_from_db,
@@ -1356,7 +1357,7 @@ def wizard_run(run_id: str):
 
                     return redirect(url_for("gmcassist.wizard_run", run_id=run_id))
 
-                ok, inserted_ids, batch_err = apply_cluster_resources_batch(db, pending)
+                ok, cr_rollback_specs, batch_err = apply_cluster_resources_batch(db, pending)
 
                 if not ok:
 
@@ -1366,7 +1367,9 @@ def wizard_run(run_id: str):
 
                 ctx = ensure_wizard_context(run_apply)
 
-                ctx["cluster_resource_row_ids"] = [int(x) for x in inserted_ids]
+                ctx[CLUSTER_RESOURCE_ROLLBACK_ROWS_KEY] = [dict(s) for s in cr_rollback_specs]
+
+                ctx["cluster_resource_row_ids"] = []
 
                 sid = str(step_def.get("id") or "cluster_resources_apply")
 
@@ -1378,7 +1381,7 @@ def wizard_run(run_id: str):
 
                         "insert_target": TABLE_CLUSTER_RESOURCES,
 
-                        "inserted_ids": list(ctx["cluster_resource_row_ids"]),
+                        "rollback_rows": list(ctx[CLUSTER_RESOURCE_ROLLBACK_ROWS_KEY]),
 
                     }
 
@@ -1406,7 +1409,7 @@ def wizard_run(run_id: str):
 
                     flash(
 
-                        "Inserted %s cluster_resources row(s). Wizard completed." % len(inserted_ids),
+                        "Inserted %s cluster_resources row(s). Wizard completed." % len(cr_rollback_specs),
 
                         "ok",
 
@@ -1416,7 +1419,7 @@ def wizard_run(run_id: str):
 
                 flash(
 
-                    "Inserted %s cluster_resources row(s)." % len(inserted_ids),
+                    "Inserted %s cluster_resources row(s)." % len(cr_rollback_specs),
 
                     "ok",
 

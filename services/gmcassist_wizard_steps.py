@@ -21,6 +21,7 @@ from services.elim_lsb import (
     read_text_file,
 )
 from services.gmcassist_cluster_resources import (
+    CLUSTER_RESOURCE_ROLLBACK_ROWS_KEY,
     pending_cluster_resources_from_run,
     wizard_def_includes_cluster_resources,
 )
@@ -49,6 +50,8 @@ def ensure_wizard_context(run: Dict[str, Any]) -> Dict[str, Any]:
         ctx["published_clusters_log"] = []
     if "cluster_resource_row_ids" not in ctx:
         ctx["cluster_resource_row_ids"] = []
+    if CLUSTER_RESOURCE_ROLLBACK_ROWS_KEY not in ctx:
+        ctx[CLUSTER_RESOURCE_ROLLBACK_ROWS_KEY] = []
     return ctx
 
 
@@ -263,8 +266,12 @@ def post_generate(
         return redirect(url_for("gmcassist.wizard_run", run_id=run_id))
 
     if ct == "lsf.cluster" and wizard_def_includes_cluster_resources(wizard_def):
+        cr_specs = ctx.get(CLUSTER_RESOURCE_ROLLBACK_ROWS_KEY)
         cr_ids = ctx.get("cluster_resource_row_ids")
-        if not isinstance(cr_ids, list) or len(cr_ids) == 0:
+        has_cr = (isinstance(cr_specs, list) and len(cr_specs) > 0) or (
+            isinstance(cr_ids, list) and len(cr_ids) > 0
+        )
+        if not has_cr:
             flash(
                 "Apply cluster_resources (previous wizard steps) before generating lsf.cluster.",
                 "error",

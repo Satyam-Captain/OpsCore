@@ -8,6 +8,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.storage import load_json, save_json
+from services.gmcassist_cluster_resources import CLUSTER_RESOURCE_ROLLBACK_ROWS_KEY
 from services.paths import project_root
 from services.wizard_loader import load_wizard_definition
 
@@ -91,6 +92,9 @@ def wizard_run_has_meaningful_progress(doc: Dict[str, Any]) -> bool:
             pass
     cr = ctx.get("cluster_resource_row_ids")
     if isinstance(cr, list) and cr:
+        return True
+    crr = ctx.get(CLUSTER_RESOURCE_ROLLBACK_ROWS_KEY)
+    if isinstance(crr, list) and crr:
         return True
     cl = ctx.get("cluster_list")
     if isinstance(cl, list) and cl:
@@ -237,6 +241,7 @@ def create_wizard_run(
             "cluster_list": [],
             "cluster_queue_index": {},
             "cluster_resource_row_ids": [],
+            CLUSTER_RESOURCE_ROLLBACK_ROWS_KEY: [],
         },
         "step_data": {},
         "rollback": {"planned": [], "notes": ""},
@@ -431,6 +436,7 @@ def mark_wizard_run_superadmin_reset(
         old_ctx = {}
     new_ctx = dict(old_ctx)
     new_ctx["cluster_resource_row_ids"] = []
+    new_ctx[CLUSTER_RESOURCE_ROLLBACK_ROWS_KEY] = []
     new_ctx["license_server_id"] = None
     new_ctx["resource_id"] = None
     now = _utc_now_iso()

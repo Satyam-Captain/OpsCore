@@ -1,12 +1,15 @@
 """
 GMCAssist: ``cluster_resources`` rows (cluster_ID, resource_ID, resource_value) before lsf.cluster.
 
-Assumes table ``cluster_resources`` has integer auto-increment primary key ``ID`` (MariaDB + JSON mock).
+Rollback uses the composite key (cluster_ID, resource_ID, resource_value); MariaDB may omit lastrowid.
 """
 
 from typing import Any, Dict, List, Optional, Tuple
 
 from services.elim_db import TABLE_CLUSTER_RESOURCES
+
+# Context key: list of dicts ``{"cluster_ID", "resource_ID", "resource_value"}`` after successful apply.
+CLUSTER_RESOURCE_ROLLBACK_ROWS_KEY = "cluster_resource_rollback_rows"
 
 
 def wizard_def_includes_cluster_resources(wizard_def: Dict[str, Any]) -> bool:
@@ -152,29 +155,78 @@ def validate_cluster_resources_prereq(resource_id: Optional[int]) -> Optional[st
     return None
 
 
+def normalize_cluster_resource_rollback_spec(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Stable composite key for rollback / delete (matches insert payload body)."""
+    return {
+        "cluster_ID": int(row["cluster_ID"]),
+        "resource_ID": int(row["resource_ID"]),
+        "resource_value": str(row["resource_value"]),
+    }
+
+
+def _undo_applied_cluster_resources_specs(db: Any, applied: List[Dict[str, Any]]) -> None:
+    fn = getattr(db, "delete_cluster_resources_by_composite", None)
+    if not callable(fn):
+        return
+    for s in reversed(applied):
+        try:
+            fn(s["cluster_ID"], s["resource_ID"], s["resource_value"])
+        except (OSError, ValueError, TypeError):
+            pass
+
+
+def cluster_resources_row_matches_spec(row: Dict[str, Any], spec: Dict[str, Any]) -> bool:
+    try:
+        if int(row.get("cluster_ID")) != int(spec["cluster_ID"]):
+            return False
+        if int(row.get("resource_ID")) != int(spec["resource_ID"]):
+            return False
+    except (TypeError, ValueError):
+        return False
+    rv = row.get("resource_value")
+    rs = rv if isinstance(rv, str) else ("" if rv is None else str(rv))
+    return rs == str(spec["resource_value"])
+
+
+def cluster_resources_row_dict_for_preview(db: Any, spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Load a matching row from DB for superadmin preview (no primary key required)."""
+    try:
+        raw = db.get_all_rows("cluster_resources", None)
+    except Exception:
+        raw = []
+    if not isinstance(raw, list):
+        return {}
+    for r in raw:
+        if isinstance(r, dict) and cluster_resources_row_matches_spec(r, spec):
+            return dict(r)
+    return {}
+
+
 def apply_cluster_resources_batch(
     db: Any, rows: List[Dict[str, Any]]
-) -> Tuple[bool, List[int], str]:
+) -> Tuple[bool, List[Dict[str, Any]], str]:
     """
-    Insert all rows; on any failure roll back inserts from this batch only.
+    Insert all rows; on any failure roll back this batch via composite deletes.
 
-    Returns (ok, inserted_ids, error_message).
+    Returns (ok, rollback_specs, error_message). Each rollback spec is
+    ``{"cluster_ID", "resource_ID", "resource_value"}`` (no reliance on AUTO_INCREMENT / lastrowid).
     """
     if not rows:
         return False, [], "No rows to insert."
-    inserted: List[int] = []
+    applied: List[Dict[str, Any]] = []
     for row in rows:
         try:
-            new_id = db.insert_row(TABLE_CLUSTER_RESOURCES, dict(row))
-            inserted.append(int(new_id))
-        except (OSError, ValueError, TypeError, KeyError) as e:
-            for rid in reversed(inserted):
-                try:
-                    db.delete_row_by_id(TABLE_CLUSTER_RESOURCES, rid)
-                except (OSError, ValueError, TypeError):
-                    pass
+            spec = normalize_cluster_resource_rollback_spec(row)
+        except (KeyError, TypeError, ValueError) as e:
+            _undo_applied_cluster_resources_specs(db, applied)
             return False, [], str(e)
-    return True, inserted, ""
+        try:
+            db.insert_row(TABLE_CLUSTER_RESOURCES, dict(row))
+        except (OSError, ValueError, TypeError, KeyError) as e:
+            _undo_applied_cluster_resources_specs(db, applied)
+            return False, [], str(e)
+        applied.append(spec)
+    return True, applied, ""
 
 
 def pending_cluster_resources_from_run(run: Dict[str, Any]) -> List[Dict[str, Any]]:

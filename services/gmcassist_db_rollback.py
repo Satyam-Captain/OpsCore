@@ -14,6 +14,7 @@ from services.elim_db import (
     TABLE_RESOURCES_REF,
     execute_elim_rollback,
 )
+from services.gmcassist_cluster_resources import CLUSTER_RESOURCE_ROLLBACK_ROWS_KEY
 from services.gmcassist_wizard_steps import ensure_wizard_context
 
 
@@ -43,23 +44,33 @@ def _cluster_resources_apply_index(wizard_def: Dict[str, Any]) -> Optional[int]:
     return None
 
 
+def _cluster_resources_tracking_present(ctx: Dict[str, Any]) -> bool:
+    """True if context records applied cluster_resources (composite specs and/or legacy numeric IDs)."""
+    rr = ctx.get(CLUSTER_RESOURCE_ROLLBACK_ROWS_KEY)
+    if isinstance(rr, list) and rr:
+        if isinstance(rr[0], dict):
+            return True
+    ids = ctx.get("cluster_resource_row_ids")
+    return isinstance(ids, list) and len(ids) > 0
+
+
 def _needs_cluster_resources_rollback(
     apply_index: Optional[int],
     from_index: int,
     target_index: int,
-    raw_ids: Any,
+    has_tracking: bool,
 ) -> bool:
     """
-    True when backing up past the cluster_resources apply step while inserted IDs are recorded.
+    True when backing up past the cluster_resources apply step while inserts are tracked in context.
 
     Covers:
     - from generate (or later) back onto apply (target <= apply_index < from)
     - from apply back onto form (from == apply_index, target < apply_index)
-    - any further Back before apply with stale IDs (e.g. 12→11) so DB does not keep orphan rows
+    - any further Back before apply with stale tracking (e.g. 12→11) so DB does not keep orphan rows
     """
     if apply_index is None:
         return False
-    if not isinstance(raw_ids, list) or len(raw_ids) == 0:
+    if not has_tracking:
         return False
     if from_index <= target_index:
         return False
@@ -100,21 +111,46 @@ def _pop_step_data_for_targets(run: Dict[str, Any], wizard_def: Dict[str, Any], 
                 del sd[sid]
 
 
-def _rollback_cluster_resources_rows(
+def _rollback_cluster_resources_inserts(
     settings: Dict[str, Any],
     run: Dict[str, Any],
     wizard_def: Dict[str, Any],
     ctx: Dict[str, Any],
-    raw_ids: List[Any],
 ) -> Tuple[bool, Optional[str]]:
     db, _, _ = build_adapters(settings)
     stack: List[Dict[str, Any]] = []
-    for raw in reversed(raw_ids):
-        try:
-            cid = int(raw)
-        except (TypeError, ValueError):
-            return False, "Invalid cluster_resource row id in wizard context; cannot roll back safely."
-        stack.append({"type": "delete_by_id", "table": TABLE_CLUSTER_RESOURCES, "id": cid})
+    specs = ctx.get(CLUSTER_RESOURCE_ROLLBACK_ROWS_KEY)
+    if isinstance(specs, list) and specs and isinstance(specs[0], dict):
+        for s in reversed(specs):
+            try:
+                stack.append(
+                    {
+                        "type": "delete_cluster_resources_composite",
+                        "cluster_ID": int(s["cluster_ID"]),
+                        "resource_ID": int(s["resource_ID"]),
+                        "resource_value": str(s["resource_value"]),
+                    }
+                )
+            except (KeyError, TypeError, ValueError):
+                return (
+                    False,
+                    "Invalid cluster_resources rollback metadata in wizard context; cannot roll back safely.",
+                )
+    else:
+        raw_ids = ctx.get("cluster_resource_row_ids")
+        if not isinstance(raw_ids, list):
+            raw_ids = []
+        for raw in reversed(raw_ids):
+            try:
+                cid = int(raw)
+            except (TypeError, ValueError):
+                return False, "Invalid cluster_resource row id in wizard context; cannot roll back safely."
+            stack.append({"type": "delete_by_id", "table": TABLE_CLUSTER_RESOURCES, "id": cid})
+    if not stack:
+        ctx[CLUSTER_RESOURCE_ROLLBACK_ROWS_KEY] = []
+        ctx["cluster_resource_row_ids"] = []
+        _pop_step_data_for_targets(run, wizard_def, ("cluster_resources",))
+        return True, None
     results = execute_elim_rollback(db, stack)
     failed = [r for r in results if r.get("status") == "failed"]
     if failed:
@@ -126,6 +162,7 @@ def _rollback_cluster_resources_rows(
             "Check DB connectivity, permissions, and whether the row still exists."
             % msg,
         )
+    ctx[CLUSTER_RESOURCE_ROLLBACK_ROWS_KEY] = []
     ctx["cluster_resource_row_ids"] = []
     _pop_step_data_for_targets(run, wizard_def, ("cluster_resources",))
     return True, "Rolled back cluster_resources inserts."
@@ -145,7 +182,8 @@ def maybe_rollback_before_navigate_back(
     ``context`` / ``step_data``, delete those rows via the DB adapter.
 
     ``cluster_resources`` inserts are rolled back when backing up across the apply step
-    (including from apply → form) while ``context.cluster_resource_row_ids`` is non-empty.
+    (including from apply → form) while ``context.cluster_resource_rollback_rows`` (or legacy
+    ``cluster_resource_row_ids``) is non-empty.
 
     Returns ``(True, None)`` if nothing to do or rollback succeeded without a user message.
     Returns ``(True, msg)`` on successful rollback (optional flash).
@@ -159,16 +197,14 @@ def maybe_rollback_before_navigate_back(
 
     ctx = ensure_wizard_context(run)
     apply_i = _cluster_resources_apply_index(wizard_def)
-    raw_cr = ctx.get("cluster_resource_row_ids")
+    has_cr_track = _cluster_resources_tracking_present(ctx)
 
-    if _needs_cluster_resources_rollback(apply_i, from_index, target_index, raw_cr):
-        return _rollback_cluster_resources_rows(
-            settings, run, wizard_def, ctx, list(raw_cr)
-        )
+    if _needs_cluster_resources_rollback(apply_i, from_index, target_index, has_cr_track):
+        return _rollback_cluster_resources_inserts(settings, run, wizard_def, ctx)
 
     # Landed on cluster_resources_apply with no inserted rows: clear stale step_data only.
     if apply_i is not None and target_index == apply_i:
-        if not isinstance(raw_cr, list) or len(raw_cr) == 0:
+        if not has_cr_track:
             _pop_step_data_for_targets(run, wizard_def, ("cluster_resources",))
             return True, None
 

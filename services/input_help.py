@@ -32,26 +32,109 @@ def find_guided_field(
     return None
 
 
-def _cluster_name_from_row(row: Dict[str, Any]) -> str:
-    """Best-effort cluster display name (column often ``cluster``; MariaDB may vary casing)."""
+def _row_numeric_id_value(row: Dict[str, Any]) -> Optional[int]:
+    """Primary key from a ``clusters`` row (``ID`` / ``id`` / any key that uppercases to ``ID``)."""
     if not isinstance(row, dict):
-        return ""
+        return None
     for rk, rv in row.items():
-        if str(rk).lower() == "cluster":
-            if rv is None:
-                return ""
-            return str(rv).strip()
+        if str(rk).upper() != "ID":
+            continue
+        try:
+            i = int(rv)
+            return i if i > 0 else None
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+_NAME_KEYS_PREFERRED = (
+    "cluster",
+    "cluster_name",
+    "name",
+    "clustername",
+    "hostname",
+)
+
+
+def _lic_collector_cluster_display_name(row: Optional[Dict[str, Any]]) -> str:
+    """
+    Display name for licCollector help: known name columns first, then any non-ID string.
+    Matches JSON mock (``cluster``) and common MariaDB variants (``name``, ``cluster_name``, …).
+    """
+    if not isinstance(row, dict) or not row:
+        return ""
+    lower_key = {str(k).lower(): k for k in row}
+    for pref in _NAME_KEYS_PREFERRED:
+        orig = lower_key.get(pref)
+        if orig is None:
+            continue
+        rv = row.get(orig)
+        if rv is None:
+            continue
+        s = str(rv).strip()
+        if s:
+            return s
+    for rk, rv in row.items():
+        if str(rk).upper() == "ID":
+            continue
+        if rv is None:
+            continue
+        s = str(rv).strip()
+        if s:
+            return s
     return ""
+
+
+def _load_clusters_by_id_map(db: DbAdapterBase) -> Dict[int, Dict[str, Any]]:
+    """
+    Map ``clusters`` primary key → full row (same logical join as ``clusters.ID = licCollector_ID``).
+
+    Tries column subsets that exist on JSON mock / MariaDB; ends with ``SELECT *``-equivalent load.
+    """
+    candidates = (
+        ["ID", "cluster", "name", "cluster_name", "clusterName", "hostname"],
+        ["ID", "cluster"],
+        ["ID", "name"],
+        ["ID", "cluster_name"],
+        ["ID", "clusterName"],
+        ["ID", "hostname"],
+        ["ID"],
+        None,
+    )
+    for colset in candidates:
+        try:
+            raw = db.get_all_rows("clusters", colset)
+        except Exception:
+            continue
+        if not isinstance(raw, list):
+            continue
+        out: Dict[int, Dict[str, Any]] = {}
+        for r in raw:
+            if not isinstance(r, dict):
+                continue
+            rid = _row_numeric_id_value(r)
+            if rid is None:
+                continue
+            out[rid] = r
+        if out:
+            return out
+    return {}
 
 
 def _build_lic_collector_id_help_rows(
     db: DbAdapterBase,
 ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
     """
-    Distinct ``licCollector_ID`` from ``license_servers``, with names from ``clusters`` (``ID`` → ``cluster``).
+    Distinct ``licCollector_ID`` from ``license_servers``, with names from ``clusters`` by ID match.
+
+    Uses an in-memory map (equivalent to ``LEFT JOIN clusters c ON c.ID = ls.licCollector_ID``).
     """
     try:
         raw_ids = db.get_unique_values("license_servers", "licCollector_ID")
+    except Exception as e:
+        return [], "licCollector_ID help failed: %s" % e
+    try:
+        cluster_map = _load_clusters_by_id_map(db)
     except Exception as e:
         return [], "licCollector_ID help failed: %s" % e
     rows: List[Dict[str, Any]] = []
@@ -66,11 +149,8 @@ def _build_lic_collector_id_help_rows(
         if lid in seen:
             continue
         seen.add(lid)
-        try:
-            crow = db.get_row_by_id("clusters", lid)
-        except Exception as e:
-            return [], "licCollector_ID help failed: %s" % e
-        label = _cluster_name_from_row(crow) if isinstance(crow, dict) else ""
+        crow = cluster_map.get(lid)
+        label = _lic_collector_cluster_display_name(crow)
         rows.append({"ID": lid, "cluster": label})
     rows.sort(key=lambda r: int(r.get("ID") or 0))
     return rows, None

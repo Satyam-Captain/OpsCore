@@ -111,6 +111,49 @@ class JsonFileDbAdapter(DbAdapterBase):
             return False
         return True
 
+    def delete_cluster_resources_by_composite(
+        self, cluster_id: int, resource_id: int, resource_value: str
+    ) -> bool:
+        """Remove the first row matching ``cluster_ID``, ``resource_ID``, ``resource_value``."""
+        try:
+            cid = int(cluster_id)
+            rid = int(resource_id)
+        except (TypeError, ValueError):
+            return False
+        val = resource_value if isinstance(resource_value, str) else str(resource_value)
+        try:
+            rows = self._load_rows("cluster_resources")
+        except (OSError, ValueError, json.JSONDecodeError):
+            return False
+        new_rows: List[Dict[str, Any]] = []
+        removed = False
+        for row in rows:
+            if not isinstance(row, dict):
+                new_rows.append(row)
+                continue
+            if removed:
+                new_rows.append(row)
+                continue
+            try:
+                rc = int(row.get("cluster_ID"))
+                rr = int(row.get("resource_ID"))
+            except (TypeError, ValueError):
+                new_rows.append(row)
+                continue
+            rv = row.get("resource_value")
+            rs = rv if isinstance(rv, str) else ("" if rv is None else str(rv))
+            if rc == cid and rr == rid and rs == val:
+                removed = True
+                continue
+            new_rows.append(row)
+        if not removed:
+            return False
+        try:
+            self._save_rows("cluster_resources", new_rows)
+        except OSError:
+            return False
+        return True
+
     def insert_row(self, table_name: str, row_dict: Dict[str, Any]) -> int:
         rows = self._load_rows(table_name)
         max_id = 0

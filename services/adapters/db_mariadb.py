@@ -484,6 +484,9 @@ class MariaDbAdapter(DbAdapterBase):
         finally:
             conn.close()
 
+        if table_name == "cluster_resources":
+            # Some sites have no usable AUTO_INCREMENT / lastrowid for this table; INSERT is still valid.
+            return new_id if new_id > 0 else 0
         if new_id <= 0:
             raise ValueError(
                 "MariaDB insert into %s returned no auto-increment ID (lastrowid=%s); "
@@ -491,6 +494,52 @@ class MariaDbAdapter(DbAdapterBase):
                 % (table_name, new_id)
             )
         return new_id
+
+    def delete_cluster_resources_by_composite(
+        self, cluster_id: int, resource_id: int, resource_value: str
+    ) -> bool:
+        """
+        Delete one ``cluster_resources`` row matching the natural key columns.
+
+        Used when ``lastrowid`` is unavailable and GMCAssist tracks inserts by composite only.
+        """
+        self._reject_unsupported_write_table("cluster_resources", "delete_cluster_resources_by_composite")
+        try:
+            from pymysql.err import Error as PyMySQLError
+        except ImportError as e:
+            raise ImportError(
+                "pymysql is required for service_db_backend=mariadb. "
+                "Install with: pip install pymysql"
+            ) from e
+        try:
+            cid = int(cluster_id)
+            rid = int(resource_id)
+        except (TypeError, ValueError):
+            return False
+        val = resource_value if isinstance(resource_value, str) else str(resource_value)
+        tq = _quote_ident("cluster_resources", "table_name")
+        cq = _quote_ident("cluster_ID", "column_name")
+        rq = _quote_ident("resource_ID", "column_name")
+        vq = _quote_ident("resource_value", "column_name")
+        sql = "DELETE FROM %s WHERE %s = %%s AND %s = %%s AND %s = %%s LIMIT 1" % (
+            tq,
+            cq,
+            rq,
+            vq,
+        )
+        conn = self._connect()
+        try:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(sql, (cid, rid, val))
+                    affected = int(cur.rowcount)
+            except PyMySQLError as e:
+                raise ValueError(
+                    "MariaDB delete from cluster_resources (composite) failed: %s" % e
+                ) from e
+        finally:
+            conn.close()
+        return affected > 0
 
     def delete_row_by_id(self, table_name: str, row_id: int) -> bool:
         """Delete by ``ID`` column; allowlisted tables only."""
